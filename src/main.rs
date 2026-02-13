@@ -2,6 +2,7 @@ use iced::widget::{button, column, row, text, text_editor};
 use iced::{keyboard, window, Element, Fill, Font, Length, Subscription, Task, Theme};
 use iced_aw::menu::{Item, Menu, MenuBar};
 use std::path::PathBuf;
+use std::sync::Arc;
 
 const ICON: &[u8] = include_bytes!("../assets/icon.png");
 
@@ -41,7 +42,9 @@ enum Message {
     Cut,
     Copy,
     Paste,
+    Delete,
     SelectAll,
+    FormatDocument,
 }
 
 impl App {
@@ -52,7 +55,7 @@ impl App {
                 current_file: None,
                 is_modified: false,
             },
-            Task::None(),
+            Task::none(),
         )
     }
 
@@ -94,6 +97,12 @@ impl App {
                     }
                 }
 
+                if modifiers.is_empty() {
+                    if let keyboard::Key::Named(keyboard::key::Named::F5) = key.as_ref() {
+                        return Some(Message::FormatDocument);
+                    }
+                }
+
                 None
             }
             _ => None,
@@ -112,13 +121,16 @@ impl App {
         .max_width(220.0);
 
         let edit_menu = Menu::new(vec![
-            Item::new(menu_item("Undo", "Ctrl+Z", Message::Undo)),
+            Item::new(menu_item_disabled("Undo")),
             Item::new(separator()),
             Item::new(menu_item("Cut", "Ctrl+X", Message::Cut)),
             Item::new(menu_item("Copy", "Ctrl+C", Message::Copy)),
             Item::new(menu_item("Paste", "Ctrl+V", Message::Paste)),
+            Item::new(menu_item("Delete", "Del", Message::Delete)),
             Item::new(separator()),
             Item::new(menu_item("Select All", "Ctrl+A", Message::SelectAll)),
+            Item::new(separator()),
+            Item::new(menu_item("Format Document", "F5", Message::FormatDocument)),
         ])
         .max_width(220.0);
 
@@ -158,13 +170,13 @@ impl App {
                 if is_edit {
                     self.is_modified = true;
                 }
-                Task::None()
+                Task::none()
             }
             Message::New => {
                 self.content = text_editor::Content::new();
                 self.current_file = None;
                 self.is_modified = false;
-                Task::None()
+                Task::none()
             }
             Message::Open => Task::perform(
                 async {
@@ -183,9 +195,9 @@ impl App {
                 self.content = text_editor::Content::with_text(&text);
                 self.current_file = Some(path);
                 self.is_modified = false;
-                Task::None()
+                Task::none()
             }
-            Message::FileOpened(None) => Task::None(),
+            Message::FileOpened(None) => Task::none(),
             Message::Save => {
                 if let Some(path) = self.current_file.clone() {
                     let text = self.content.text();
@@ -219,12 +231,112 @@ impl App {
             Message::FileSaved(Some(path)) => {
                 self.current_file = Some(path);
                 self.is_modified = false;
-                Task::None()
+                Task::none()
             }
-            Message::FileSaved(None) => Task::None(),
+            Message::FileSaved(None) => Task::none(),
             Message::Exit => iced::exit(),
-            Message::Undo | Message::Cut | Message::Copy | Message::Paste | Message::SelectAll => {
-                Task::None()
+            Message::Undo => Task::none(),
+            Message::Cut => {
+                if let Some(selected) = self.content.selection() {
+                    let _ = arboard::Clipboard::new()
+                        .and_then(|mut cb| cb.set_text(selected));
+                    self.content.perform(text_editor::Action::Edit(text_editor::Edit::Delete));
+                    self.is_modified = true;
+                }
+                Task::none()
+            }
+            Message::Copy => {
+                if let Some(selected) = self.content.selection() {
+                    let _ = arboard::Clipboard::new()
+                        .and_then(|mut cb| cb.set_text(selected));
+                }
+                Task::none()
+            }
+            Message::Paste => {
+                if let Ok(mut cb) = arboard::Clipboard::new() {
+                    if let Ok(content) = cb.get_text() {
+                        self.content.perform(text_editor::Action::Edit(
+                            text_editor::Edit::Paste(Arc::new(content)),
+                        ));
+                        self.is_modified = true;
+                    }
+                }
+                Task::none()
+            }
+            Message::Delete => {
+                self.content.perform(text_editor::Action::Edit(text_editor::Edit::Delete));
+                self.is_modified = true;
+                Task::none()
+            }
+            Message::SelectAll => {
+                self.content.perform(text_editor::Action::SelectAll);
+                Task::none()
+            }
+            Message::FormatDocument => {
+                let indent_size = 4;
+                let original = self.content.text();
+                let mut level: usize = 0;
+                let formatted: String = original
+                    .lines()
+                    .map(|line| {
+                        let trimmed = line.trim();
+                        if trimmed.is_empty() {
+                            return String::new();
+                        }
+                        let first_word = trimmed.split_whitespace().next().unwrap_or("");
+                        let closes_brace = trimmed.starts_with('}')
+                            || trimmed.starts_with(']')
+                            || trimmed.starts_with(')');
+                        let closes_keyword = matches!(
+                            first_word,
+                            "end" | "end;" | "end," | "endif"
+                                | "endfor" | "endwhile" | "endfunction"
+                                | "else" | "elseif" | "elif"
+                                | "elsif" | "except" | "catch"
+                                | "finally" | "when" | "rescue"
+                        );
+                        if closes_brace || closes_keyword {
+                            level = level.saturating_sub(1);
+                        }
+                        let result = format!("{}{}", " ".repeat(level * indent_size), trimmed);
+                        for ch in trimmed.chars() {
+                            match ch {
+                                '{' | '[' | '(' => level += 1,
+                                '}' | ']' | ')' => level = level.saturating_sub(1),
+                                _ => {}
+                            }
+                        }
+                        let opens_keyword = matches!(
+                            first_word,
+                            "if" | "else" | "elseif" | "elif"
+                                | "elsif" | "for" | "while" | "do"
+                                | "loop" | "begin" | "case" | "switch"
+                                | "try" | "catch" | "except" | "finally"
+                                | "def" | "class" | "module" | "when"
+                                | "rescue" | "unless" | "until"
+                        );
+                        let ends_with_opener = trimmed.ends_with("then")
+                            || trimmed.ends_with("do")
+                            || trimmed.ends_with("repeat");
+                        let has_function = trimmed.contains("function")
+                            && !trimmed.starts_with("end");
+                        if opens_keyword || ends_with_opener || has_function {
+                            if !trimmed.contains("end")
+                                || trimmed.contains("function")
+                                || closes_keyword
+                            {
+                                level += 1;
+                            }
+                        }
+                        result
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if formatted != original.trim_end_matches('\n') {
+                    self.content = text_editor::Content::with_text(&formatted);
+                    self.is_modified = true;
+                }
+                Task::none()
             }
         }
     }
