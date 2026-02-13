@@ -9,6 +9,9 @@ default-run = "f4"
 name = "f4"
 path = "src/main.rs"
 
+[build-dependencies]
+winresource = "0.1"
+
 [dependencies]
-iced = { version = "0.14", features = ["tokio"] }
+iced = { version = "0.14", features = ["tokio", "image"] }
 rfd = "0.15"

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=F4
+Comment=Simple text editor with Vim motions
+Exec=f4 %F
+Icon=/home/fran/.local/share/icons/hicolor/256x256/apps/f4.png
+Terminal=false
+Type=Application
+Categories=Utility;TextEditor;
+MimeType=text/plain;text/x-makefile;text/x-c++hdr;text/x-c++src;text/x-chdr;text/x-csrc;text/x-java;text/x-python;text/x-sh;application/json;application/xml;

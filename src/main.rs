@@ -1,14 +1,22 @@
 use iced::widget::{column, text_editor};
-use iced::{keyboard, Element, Fill, Font, Subscription, Task, Theme};
+use iced::{keyboard, window, Element, Fill, Font, Subscription, Task, Theme};
 use std::path::PathBuf;
 
+const ICON: &[u8] = include_bytes!("../assets/icon.png");
+
 fn main() -> iced::Result {
+    let icon = window::icon::from_file_data(ICON, None).ok();
+
     iced::application(App::new, App::update, App::view)
         .title(App::title)
         .theme(App::theme)
         .subscription(App::subscription)
         .default_font(Font::MONOSPACE)
-        .window_size((800.0, 600.0))
+        .window(window::Settings {
+            size: iced::Size::new(800.0, 600.0),
+            icon,
+            ..window::Settings::default()
+        })
         .run()
 }
 
