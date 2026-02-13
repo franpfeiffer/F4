@@ -1,4 +1,4 @@
-use iced::widget::{button, column, row, text, text_editor};
+use iced::widget::{button, checkbox, column, container, row, text, text_editor, text_input};
 use iced::{keyboard, window, Element, Fill, Font, Length, Subscription, Task, Theme};
 use iced_aw::menu::{Item, Menu, MenuBar};
 use std::path::PathBuf;
@@ -26,6 +26,13 @@ struct App {
     content: text_editor::Content,
     current_file: Option<PathBuf>,
     is_modified: bool,
+    show_panel: bool,
+    find_query: String,
+    replace_text: String,
+    case_sensitive: bool,
+    goto_line: String,
+    find_matches: Vec<(usize, usize)>,
+    current_match: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +52,17 @@ enum Message {
     Delete,
     SelectAll,
     FormatDocument,
+    TogglePanel,
+    ClosePanel,
+    FindQueryChanged(String),
+    ReplaceTextChanged(String),
+    GoToLineChanged(String),
+    ToggleCaseSensitive(bool),
+    FindNext,
+    FindPrevious,
+    ReplaceOne,
+    ReplaceAll,
+    GoToLineSubmit,
 }
 
 impl App {
@@ -54,6 +72,13 @@ impl App {
                 content: text_editor::Content::new(),
                 current_file: None,
                 is_modified: false,
+                show_panel: false,
+                find_query: String::new(),
+                replace_text: String::new(),
+                case_sensitive: false,
+                goto_line: String::new(),
+                find_matches: Vec::new(),
+                current_match: None,
             },
             Task::none(),
         )
@@ -93,13 +118,31 @@ impl App {
                         keyboard::Key::Character("n") => return Some(Message::New),
                         keyboard::Key::Character("o") => return Some(Message::Open),
                         keyboard::Key::Character("s") => return Some(Message::Save),
+                        keyboard::Key::Character("f") => return Some(Message::TogglePanel),
+                        keyboard::Key::Character("h") => return Some(Message::TogglePanel),
+                        keyboard::Key::Character("g") => return Some(Message::TogglePanel),
                         _ => {}
                     }
                 }
 
                 if modifiers.is_empty() {
-                    if let keyboard::Key::Named(keyboard::key::Named::F5) = key.as_ref() {
-                        return Some(Message::FormatDocument);
+                    match key.as_ref() {
+                        keyboard::Key::Named(keyboard::key::Named::F5) => {
+                            return Some(Message::FormatDocument);
+                        }
+                        keyboard::Key::Named(keyboard::key::Named::F3) => {
+                            return Some(Message::FindNext);
+                        }
+                        keyboard::Key::Named(keyboard::key::Named::Escape) => {
+                            return Some(Message::ClosePanel);
+                        }
+                        _ => {}
+                    }
+                }
+
+                if modifiers.shift() && !modifiers.control() {
+                    if let keyboard::Key::Named(keyboard::key::Named::F3) = key.as_ref() {
+                        return Some(Message::FindPrevious);
                     }
                 }
 
@@ -107,6 +150,113 @@ impl App {
             }
             _ => None,
         })
+    }
+
+    fn find_all_matches(&mut self) {
+        self.find_matches.clear();
+        self.current_match = None;
+
+        if self.find_query.is_empty() {
+            return;
+        }
+
+        let content_text = self.content.text();
+        let (haystack, needle) = if self.case_sensitive {
+            (content_text.clone(), self.find_query.clone())
+        } else {
+            (content_text.to_lowercase(), self.find_query.to_lowercase())
+        };
+
+        let mut start = 0;
+        while let Some(pos) = haystack[start..].find(&needle) {
+            let abs_pos = start + pos;
+            let line = content_text[..abs_pos].matches('\n').count();
+            let line_start = if line == 0 {
+                0
+            } else {
+                content_text[..abs_pos].rfind('\n').unwrap() + 1
+            };
+            let col = abs_pos - line_start;
+            self.find_matches.push((line, col));
+            start = abs_pos + 1;
+        }
+    }
+
+    fn navigate_to_match(&mut self, index: usize) {
+        if let Some(&(line, col)) = self.find_matches.get(index) {
+            self.current_match = Some(index);
+            let end_col = col + self.find_query.len();
+            self.content.move_to(text_editor::Cursor {
+                position: text_editor::Position { line, column: col },
+                selection: Some(text_editor::Position {
+                    line,
+                    column: end_col,
+                }),
+            });
+        }
+    }
+
+    fn search_panel(&self) -> Element<'_, Message> {
+        let match_info = if self.find_query.is_empty() {
+            String::new()
+        } else if self.find_matches.is_empty() {
+            String::from("No matches")
+        } else {
+            let idx = self.current_match.map(|i| i + 1).unwrap_or(0);
+            format!("{}/{}", idx, self.find_matches.len())
+        };
+
+        let line_count = self.content.line_count();
+
+        container(
+            column![
+                row![
+                    text("Find:").size(14).width(60),
+                    text_input("Search...", &self.find_query)
+                        .size(14)
+                        .on_input(Message::FindQueryChanged)
+                        .on_submit(Message::FindNext)
+                        .width(Length::Fill),
+                    text(match_info).size(12).width(80),
+                    checkbox(self.case_sensitive).label("Aa").on_toggle(Message::ToggleCaseSensitive).size(14),
+                    dialog_button("Find Next", Message::FindNext),
+                    dialog_button("Find Prev", Message::FindPrevious),
+                ]
+                .spacing(6)
+                .align_y(iced::Alignment::Center),
+                row![
+                    text("Replace:").size(14).width(60),
+                    text_input("Replace with...", &self.replace_text)
+                        .size(14)
+                        .on_input(Message::ReplaceTextChanged)
+                        .width(Length::Fill),
+                    dialog_button("Replace", Message::ReplaceOne),
+                    dialog_button("Replace All", Message::ReplaceAll),
+                ]
+                .spacing(6)
+                .align_y(iced::Alignment::Center),
+                row![
+                    text(format!("Go To Line (1-{}):", line_count)).size(14),
+                    text_input("Line number...", &self.goto_line)
+                        .size(14)
+                        .on_input(Message::GoToLineChanged)
+                        .on_submit(Message::GoToLineSubmit)
+                        .width(200),
+                    dialog_button("Go", Message::GoToLineSubmit),
+                    iced::widget::Space::new().width(Length::Fill),
+                    dialog_button("X", Message::ClosePanel),
+                ]
+                .spacing(6)
+                .align_y(iced::Alignment::Center),
+            ]
+            .spacing(4),
+        )
+        .padding([6, 8])
+        .style(|theme: &Theme| container::Style {
+            background: Some(theme.extended_palette().background.weak.color.into()),
+            ..Default::default()
+        })
+        .into()
     }
 
     fn menu_bar(&self) -> Element<'_, Message> {
@@ -127,6 +277,10 @@ impl App {
             Item::new(menu_item("Copy", "Ctrl+C", Message::Copy)),
             Item::new(menu_item("Paste", "Ctrl+V", Message::Paste)),
             Item::new(menu_item("Delete", "Del", Message::Delete)),
+            Item::new(separator()),
+            Item::new(menu_item("Find", "Ctrl+F", Message::TogglePanel)),
+            Item::new(menu_item("Replace", "Ctrl+H", Message::TogglePanel)),
+            Item::new(menu_item("Go To Line", "Ctrl+G", Message::TogglePanel)),
             Item::new(separator()),
             Item::new(menu_item("Select All", "Ctrl+A", Message::SelectAll)),
             Item::new(separator()),
@@ -169,6 +323,9 @@ impl App {
                 self.content.perform(action);
                 if is_edit {
                     self.is_modified = true;
+                    if self.show_panel {
+                        self.find_all_matches();
+                    }
                 }
                 Task::none()
             }
@@ -176,6 +333,9 @@ impl App {
                 self.content = text_editor::Content::new();
                 self.current_file = None;
                 self.is_modified = false;
+                self.show_panel = false;
+                self.find_matches.clear();
+                self.current_match = None;
                 Task::none()
             }
             Message::Open => Task::perform(
@@ -338,18 +498,173 @@ impl App {
                 }
                 Task::none()
             }
+            Message::TogglePanel => {
+                self.show_panel = !self.show_panel;
+                if self.show_panel {
+                    self.find_all_matches();
+                } else {
+                    self.find_matches.clear();
+                    self.current_match = None;
+                }
+                Task::none()
+            }
+            Message::ClosePanel => {
+                self.show_panel = false;
+                self.find_matches.clear();
+                self.current_match = None;
+                Task::none()
+            }
+            Message::FindQueryChanged(query) => {
+                self.find_query = query;
+                self.find_all_matches();
+                Task::none()
+            }
+            Message::ReplaceTextChanged(text) => {
+                self.replace_text = text;
+                Task::none()
+            }
+            Message::GoToLineChanged(line) => {
+                self.goto_line = line;
+                Task::none()
+            }
+            Message::ToggleCaseSensitive(val) => {
+                self.case_sensitive = val;
+                self.find_all_matches();
+                Task::none()
+            }
+            Message::FindNext => {
+                if self.find_matches.is_empty() {
+                    return Task::none();
+                }
+                let next = match self.current_match {
+                    Some(i) => (i + 1) % self.find_matches.len(),
+                    None => 0,
+                };
+                self.navigate_to_match(next);
+                Task::none()
+            }
+            Message::FindPrevious => {
+                if self.find_matches.is_empty() {
+                    return Task::none();
+                }
+                let prev = match self.current_match {
+                    Some(0) => self.find_matches.len() - 1,
+                    Some(i) => i - 1,
+                    None => self.find_matches.len() - 1,
+                };
+                self.navigate_to_match(prev);
+                Task::none()
+            }
+            Message::ReplaceOne => {
+                if let Some(idx) = self.current_match {
+                    if idx < self.find_matches.len() {
+                        let (line, col) = self.find_matches[idx];
+                        let end_col = col + self.find_query.len();
+                        self.content.move_to(text_editor::Cursor {
+                            position: text_editor::Position { line, column: col },
+                            selection: Some(text_editor::Position {
+                                line,
+                                column: end_col,
+                            }),
+                        });
+                        self.content.perform(text_editor::Action::Edit(
+                            text_editor::Edit::Paste(Arc::new(self.replace_text.clone())),
+                        ));
+                        self.is_modified = true;
+                        self.find_all_matches();
+                        if !self.find_matches.is_empty() {
+                            let next = idx.min(self.find_matches.len() - 1);
+                            self.navigate_to_match(next);
+                        }
+                    }
+                } else if !self.find_matches.is_empty() {
+                    self.navigate_to_match(0);
+                }
+                Task::none()
+            }
+            Message::ReplaceAll => {
+                if self.find_matches.is_empty() || self.find_query.is_empty() {
+                    return Task::none();
+                }
+                let original = self.content.text();
+                let replaced = if self.case_sensitive {
+                    original.replace(&self.find_query, &self.replace_text)
+                } else {
+                    let mut result = original.clone();
+                    let lower_query = self.find_query.to_lowercase();
+                    let mut search_start = 0;
+                    while let Some(pos) = result[search_start..].to_lowercase().find(&lower_query) {
+                        let abs_pos = search_start + pos;
+                        result.replace_range(abs_pos..abs_pos + self.find_query.len(), &self.replace_text);
+                        search_start = abs_pos + self.replace_text.len();
+                    }
+                    result
+                };
+                if replaced != original {
+                    self.content = text_editor::Content::with_text(&replaced);
+                    self.is_modified = true;
+                    self.find_all_matches();
+                }
+                Task::none()
+            }
+            Message::GoToLineSubmit => {
+                if let Ok(line_num) = self.goto_line.trim().parse::<usize>() {
+                    let target = line_num.saturating_sub(1);
+                    let max_line = self.content.line_count().saturating_sub(1);
+                    let line = target.min(max_line);
+                    self.content.move_to(text_editor::Cursor {
+                        position: text_editor::Position { line, column: 0 },
+                        selection: None,
+                    });
+                    self.goto_line.clear();
+                }
+                Task::none()
+            }
         }
     }
 
     fn view(&self) -> Element<'_, Message> {
-        column![
-            self.menu_bar(),
+        let mut col = column![self.menu_bar()];
+
+        if self.show_panel {
+            col = col.push(self.search_panel());
+        }
+
+        col = col.push(
             text_editor(&self.content)
                 .height(Fill)
-                .on_action(Message::Edit)
-        ]
-        .into()
+                .on_action(Message::Edit),
+        );
+
+        col.into()
     }
+}
+
+fn dialog_button(label: &str, msg: Message) -> Element<'_, Message> {
+    button(text(label).size(13))
+        .padding([3, 8])
+        .on_press(msg)
+        .style(|theme: &Theme, status| {
+            let palette = theme.extended_palette();
+            let base = button::Style {
+                text_color: palette.background.base.text,
+                background: Some(palette.background.strong.color.into()),
+                border: iced::Border {
+                    radius: 3.0.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            match status {
+                button::Status::Hovered | button::Status::Pressed => button::Style {
+                    background: Some(palette.primary.strong.color.into()),
+                    text_color: palette.primary.strong.text,
+                    ..base
+                },
+                _ => base,
+            }
+        })
+        .into()
 }
 
 fn menu_root(label: &str) -> Element<'_, Message> {
