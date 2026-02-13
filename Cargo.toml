@@ -1,6 +1,6 @@
 [package]
 name = "f4"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 default-run = "f4"
@@ -14,4 +14,5 @@ winresource = "0.1"
 
 [dependencies]
 iced = { version = "0.14", features = ["tokio", "image"] }
+iced_aw = { version = "0.13", features = ["menu"] }
 rfd = "0.15"
