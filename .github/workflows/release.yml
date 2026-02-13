@@ -47,21 +47,21 @@ jobs:
         if: matrix.archive == 'tar.gz'
         run: |
           cd target/${{ matrix.target }}/release
-          tar czf ../../../4f-${{ matrix.target }}.tar.gz 4f
+          tar czf ../../../f4-${{ matrix.target }}.tar.gz f4
           cd ../../..
-          shasum -a 256 4f-${{ matrix.target }}.tar.gz > 4f-${{ matrix.target }}.tar.gz.sha256
+          shasum -a 256 f4-${{ matrix.target }}.tar.gz > f4-${{ matrix.target }}.tar.gz.sha256
 
       - name: Package (windows)
         if: matrix.archive == 'zip'
         shell: pwsh
         run: |
-          Copy-Item target/${{ matrix.target }}/release/4f.exe 4f-${{ matrix.target }}.exe
-          Compress-Archive -Path target/${{ matrix.target }}/release/4f.exe -DestinationPath 4f-${{ matrix.target }}.zip
-          (Get-FileHash 4f-${{ matrix.target }}.exe -Algorithm SHA256).Hash.ToLower() + "  4f-${{ matrix.target }}.exe" | Out-File -Encoding ascii 4f-${{ matrix.target }}.exe.sha256
-          (Get-FileHash 4f-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  4f-${{ matrix.target }}.zip" | Out-File -Encoding ascii 4f-${{ matrix.target }}.zip.sha256
+          Copy-Item target/${{ matrix.target }}/release/f4.exe f4-${{ matrix.target }}.exe
+          Compress-Archive -Path target/${{ matrix.target }}/release/f4.exe -DestinationPath f4-${{ matrix.target }}.zip
+          (Get-FileHash f4-${{ matrix.target }}.exe -Algorithm SHA256).Hash.ToLower() + "  f4-${{ matrix.target }}.exe" | Out-File -Encoding ascii f4-${{ matrix.target }}.exe.sha256
+          (Get-FileHash f4-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  f4-${{ matrix.target }}.zip" | Out-File -Encoding ascii f4-${{ matrix.target }}.zip.sha256
 
       - name: Upload
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            4f-${{ matrix.target }}.*
+            f4-${{ matrix.target }}.*
