@@ -1,4 +1,4 @@
-use iced::widget::{button, checkbox, column, container, row, text, text_editor, text_input};
+use iced::widget::{button, center, checkbox, column, container, row, stack, text, text_editor, text_input};
 use iced::widget::text::Wrapping;
 use iced::{event, keyboard, window, Element, Event, Fill, Font, Length, Subscription, Task, Theme};
 use iced_aw::menu::{Item, Menu, MenuBar};
@@ -38,6 +38,7 @@ struct App {
     word_wrap: bool,
     scale: f32,
     ctrl_held: bool,
+    show_about: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +74,8 @@ enum Message {
     ZoomOut,
     CtrlPressed,
     CtrlReleased,
+    ShowAbout,
+    CloseAbout,
 }
 
 impl App {
@@ -92,6 +95,7 @@ impl App {
                 word_wrap: true,
                 scale: 1.0,
                 ctrl_held: false,
+                show_about: false,
             },
             Task::none(),
         )
@@ -337,7 +341,7 @@ impl App {
         .max_width(220.0);
 
         let help_menu = Menu::new(vec![
-            Item::new(menu_item_disabled("About F4")),
+            Item::new(menu_item("About F4", "", Message::ShowAbout)),
         ])
         .max_width(220.0);
 
@@ -682,7 +686,72 @@ impl App {
                 self.ctrl_held = false;
                 Task::none()
             }
+            Message::ShowAbout => {
+                self.show_about = true;
+                Task::none()
+            }
+            Message::CloseAbout => {
+                self.show_about = false;
+                Task::none()
+            }
         }
+    }
+
+    fn status_bar(&self) -> Element<'_, Message> {
+        let cursor = self.content.cursor();
+        let line = cursor.position.line + 1;
+        let col = cursor.position.column + 1;
+        let lines = self.content.line_count();
+        let zoom = (self.scale * 100.0).round() as u32;
+
+        container(
+            row![
+                text(format!("Ln {}, Col {}", line, col)).size(12),
+                iced::widget::Space::new().width(Length::Fill),
+                text(format!("{} lines", lines)).size(12),
+                iced::widget::Space::new().width(20),
+                text(format!("{}%", zoom)).size(12),
+            ]
+            .align_y(iced::Alignment::Center),
+        )
+        .padding([2, 8])
+        .style(|theme: &Theme| container::Style {
+            background: Some(theme.extended_palette().background.weak.color.into()),
+            ..Default::default()
+        })
+        .into()
+    }
+
+    fn about_dialog(&self) -> Element<'_, Message> {
+        let dialog = container(
+            column![
+                text("F4").size(20),
+                text("A lightweight text editor").size(14),
+                text("Dunno what else to say...").size(14),
+                text("Built in rust btw").size(14),
+                iced::widget::Space::new().height(10),
+                button(text("OK").size(14))
+                    .padding([4, 20])
+                    .on_press(Message::CloseAbout),
+            ]
+            .spacing(6)
+            .align_x(iced::Alignment::Center),
+        )
+        .padding(20)
+        .style(|theme: &Theme| {
+            let palette = theme.extended_palette();
+            container::Style {
+                background: Some(palette.background.strong.color.into()),
+                border: iced::Border {
+                    radius: 8.0.into(),
+                    width: 1.0,
+                    color: palette.background.weak.color,
+                },
+                ..Default::default()
+            }
+        });
+
+        center(dialog).into()
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -705,7 +774,13 @@ impl App {
                 .on_action(Message::Edit),
         );
 
-        col.into()
+        col = col.push(self.status_bar());
+
+        if self.show_about {
+            stack![col, self.about_dialog()].into()
+        } else {
+            col.into()
+        }
     }
 }
 
