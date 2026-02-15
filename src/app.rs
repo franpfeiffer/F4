@@ -3,7 +3,7 @@ use iced::widget::text::Wrapping;
 use iced::{Element, Fill, Task, Theme};
 use std::path::PathBuf;
 
-use crate::message::Message;
+use crate::message::{Message, PendingAction};
 
 pub struct App {
     pub content: text_editor::Content,
@@ -20,6 +20,7 @@ pub struct App {
     pub scale: f32,
     pub ctrl_held: bool,
     pub show_about: bool,
+    pub pending_action: Option<PendingAction>,
 }
 
 impl App {
@@ -40,6 +41,7 @@ impl App {
                 scale: 1.0,
                 ctrl_held: false,
                 show_about: false,
+                pending_action: None,
             },
             Task::none(),
         )
@@ -86,8 +88,16 @@ impl App {
 
         col = col.push(self.status_bar());
 
-        if self.show_about {
-            stack![col, self.about_dialog()].into()
+        let has_overlay = self.show_about || self.pending_action.is_some();
+        if has_overlay {
+            let mut layers = stack![col];
+            if self.show_about {
+                layers = layers.push(self.about_dialog());
+            }
+            if self.pending_action.is_some() {
+                layers = layers.push(self.save_changes_dialog());
+            }
+            layers.into()
         } else {
             col.into()
         }

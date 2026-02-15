@@ -1,4 +1,4 @@
-use iced::{event, keyboard, Event, Subscription};
+use iced::{event, keyboard, window, Event, Subscription};
 
 use crate::app::App;
 use crate::message::Message;
@@ -6,6 +6,10 @@ use crate::message::Message;
 impl App {
     pub fn subscription(&self) -> Subscription<Message> {
         event::listen_with(|event, status, _window| {
+            if let Event::Window(window::Event::CloseRequested) = &event {
+                return Some(Message::WindowCloseRequested);
+            }
+
             match &event {
                 Event::Keyboard(keyboard::Event::KeyPressed { key: keyboard::Key::Named(keyboard::key::Named::Control), .. }) => {
                     return Some(Message::CtrlPressed);

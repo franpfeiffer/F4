@@ -2,6 +2,13 @@ use iced::widget::text_editor;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
+pub enum PendingAction {
+    New,
+    Open,
+    Exit,
+}
+
+#[derive(Debug, Clone)]
 pub enum Message {
     Edit(text_editor::Action),
     New,
@@ -36,4 +43,8 @@ pub enum Message {
     CtrlReleased,
     ShowAbout,
     CloseAbout,
+    WindowCloseRequested,
+    ConfirmSave,
+    ConfirmDiscard,
+    ConfirmCancel,
 }

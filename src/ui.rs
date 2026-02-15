@@ -61,6 +61,46 @@ impl App {
 
         center(dialog).into()
     }
+
+    pub fn save_changes_dialog(&self) -> Element<'_, Message> {
+        let name = match &self.current_file {
+            Some(path) => path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| String::from("Untitled")),
+            None => String::from("Untitled"),
+        };
+
+        let dialog = container(
+            column![
+                text(format!("Do you want to save changes to {}?", name)).size(14),
+                iced::widget::Space::new().height(10),
+                row![
+                    dialog_button("Save", Message::ConfirmSave),
+                    dialog_button("Don't Save", Message::ConfirmDiscard),
+                    dialog_button("Cancel", Message::ConfirmCancel),
+                ]
+                .spacing(8),
+            ]
+            .spacing(6)
+            .align_x(iced::Alignment::Center),
+        )
+        .padding(20)
+        .style(|theme: &Theme| {
+            let palette = theme.extended_palette();
+            container::Style {
+                background: Some(palette.background.strong.color.into()),
+                border: iced::Border {
+                    radius: 8.0.into(),
+                    width: 1.0,
+                    color: palette.background.weak.color,
+                },
+                ..Default::default()
+            }
+        });
+
+        center(dialog).into()
+    }
 }
 
 pub fn dialog_button(label: &str, msg: Message) -> Element<'_, Message> {

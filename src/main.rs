@@ -21,6 +21,7 @@ fn main() -> iced::Result {
         .theme(App::theme)
         .subscription(App::subscription)
         .scale_factor(|app| app.scale)
+        .exit_on_close_request(false)
         .default_font(Font::MONOSPACE)
         .window(window::Settings {
             size: iced::Size::new(800.0, 600.0),

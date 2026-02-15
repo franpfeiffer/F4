@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::app::App;
 use crate::format::format_document;
-use crate::message::Message;
+use crate::message::{Message, PendingAction};
 
 impl App {
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -26,6 +26,10 @@ impl App {
                 Task::none()
             }
             Message::New => {
+                if self.is_modified {
+                    self.pending_action = Some(PendingAction::New);
+                    return Task::none();
+                }
                 self.content = text_editor::Content::new();
                 self.current_file = None;
                 self.is_modified = false;
@@ -34,7 +38,12 @@ impl App {
                 self.current_match = None;
                 Task::none()
             }
-            Message::Open => Task::perform(
+            Message::Open => {
+                if self.is_modified {
+                    self.pending_action = Some(PendingAction::Open);
+                    return Task::none();
+                }
+                Task::perform(
                 async {
                     let handle = rfd::AsyncFileDialog::new()
                         .add_filter("Text Files", &["txt", "md", "rs", "toml", "json", "yaml", "yml", "xml", "html", "css", "js", "ts", "py", "sh"])
@@ -46,7 +55,8 @@ impl App {
                     Some((path, text))
                 },
                 Message::FileOpened,
-            ),
+            )
+            }
             Message::FileOpened(Some((path, text))) => {
                 self.content = text_editor::Content::with_text(&text);
                 self.current_file = Some(path);
@@ -87,10 +97,24 @@ impl App {
             Message::FileSaved(Some(path)) => {
                 self.current_file = Some(path);
                 self.is_modified = false;
-                Task::none()
+                if let Some(action) = self.pending_action.take() {
+                    match action {
+                        PendingAction::New => self.update(Message::New),
+                        PendingAction::Open => self.update(Message::Open),
+                        PendingAction::Exit => iced::exit(),
+                    }
+                } else {
+                    Task::none()
+                }
             }
             Message::FileSaved(None) => Task::none(),
-            Message::Exit => iced::exit(),
+            Message::Exit => {
+                if self.is_modified {
+                    self.pending_action = Some(PendingAction::Exit);
+                    return Task::none();
+                }
+                iced::exit()
+            }
             Message::Undo => Task::none(),
             Message::Cut => {
                 if let Some(selected) = self.content.selection() {
@@ -285,6 +309,36 @@ impl App {
             }
             Message::CloseAbout => {
                 self.show_about = false;
+                Task::none()
+            }
+            Message::WindowCloseRequested => {
+                if self.is_modified {
+                    self.pending_action = Some(PendingAction::Exit);
+                    Task::none()
+                } else {
+                    iced::exit()
+                }
+            }
+            Message::ConfirmSave => {
+                self.update(Message::Save)
+            }
+            Message::ConfirmDiscard => {
+                let action = self.pending_action.take();
+                match action {
+                    Some(PendingAction::New) => {
+                        self.is_modified = false;
+                        self.update(Message::New)
+                    }
+                    Some(PendingAction::Open) => {
+                        self.is_modified = false;
+                        self.update(Message::Open)
+                    }
+                    Some(PendingAction::Exit) => iced::exit(),
+                    None => Task::none(),
+                }
+            }
+            Message::ConfirmCancel => {
+                self.pending_action = None;
                 Task::none()
             }
         }
