@@ -3,6 +3,7 @@ use iced::widget::text::Wrapping;
 use iced::{Element, Fill, Task, Theme};
 use std::path::PathBuf;
 
+use crate::highlight::{FindHighlightSettings, FindHighlighter, format_highlight};
 use crate::message::{Message, PendingAction};
 
 pub struct App {
@@ -79,12 +80,27 @@ impl App {
             Wrapping::None
         };
 
-        col = col.push(
-            text_editor(&self.content)
-                .height(Fill)
-                .wrapping(wrapping)
-                .on_action(Message::Edit),
-        );
+        let editor = text_editor(&self.content)
+            .height(Fill)
+            .wrapping(wrapping)
+            .on_action(Message::Edit);
+
+        let editor: Element<'_, Message> = if self.show_panel && !self.find_query.is_empty() {
+            editor
+                .highlight_with::<FindHighlighter>(
+                    FindHighlightSettings {
+                        matches: self.find_matches.clone(),
+                        query_len: self.find_query.len(),
+                        current_match: self.current_match,
+                    },
+                    format_highlight,
+                )
+                .into()
+        } else {
+            editor.into()
+        };
+
+        col = col.push(editor);
 
         col = col.push(self.status_bar());
 

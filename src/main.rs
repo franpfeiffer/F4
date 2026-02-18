@@ -1,5 +1,6 @@
 mod app;
 mod format;
+mod highlight;
 mod menu;
 mod message;
 mod search;

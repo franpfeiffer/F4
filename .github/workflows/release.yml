@@ -60,8 +60,22 @@ jobs:
           (Get-FileHash f4-${{ matrix.target }}.exe -Algorithm SHA256).Hash.ToLower() + "  f4-${{ matrix.target }}.exe" | Out-File -Encoding ascii f4-${{ matrix.target }}.exe.sha256
           (Get-FileHash f4-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  f4-${{ matrix.target }}.zip" | Out-File -Encoding ascii f4-${{ matrix.target }}.zip.sha256
 
-      - name: Upload
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: f4-${{ matrix.target }}.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            f4-${{ matrix.target }}.*
+          files: f4-*.*
