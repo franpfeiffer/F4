@@ -85,20 +85,17 @@ impl App {
             .wrapping(wrapping)
             .on_action(Message::Edit);
 
-        let editor: Element<'_, Message> = if self.show_panel && !self.find_query.is_empty() {
-            editor
-                .highlight_with::<FindHighlighter>(
-                    FindHighlightSettings {
-                        matches: self.find_matches.clone(),
-                        query_len: self.find_query.len(),
-                        current_match: self.current_match,
-                    },
-                    format_highlight,
-                )
-                .into()
-        } else {
-            editor.into()
-        };
+        let active = self.show_panel && !self.find_query.is_empty();
+        let editor: Element<'_, Message> = editor
+            .highlight_with::<FindHighlighter>(
+                FindHighlightSettings {
+                    matches: if active { self.find_matches.clone() } else { vec![] },
+                    query_len: if active { self.find_query.len() } else { 0 },
+                    current_match: if active { self.current_match } else { None },
+                },
+                format_highlight,
+            )
+            .into();
 
         col = col.push(editor);
 
