@@ -83,7 +83,12 @@ impl App {
         let editor = text_editor(&self.content)
             .height(Fill)
             .wrapping(wrapping)
-            .on_action(Message::Edit);
+            .on_action(Message::Edit)
+            .style(|theme: &Theme, status| {
+                let mut style = text_editor::default(theme, status);
+                style.border.width = 0.0;
+                style
+            });
 
         let active = self.show_panel && !self.find_query.is_empty();
         let editor: Element<'_, Message> = editor
