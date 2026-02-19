@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Rust (stable)
+Rust
 
 ## Build
 

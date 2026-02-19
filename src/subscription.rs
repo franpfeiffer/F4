@@ -6,11 +6,13 @@ use iced::advanced::subscription;
 use iced::futures::StreamExt;
 
 use crate::app::App;
-use crate::message::{Message, VimMode};
+use crate::message::{Message, VimMode, VimPending};
 
 struct AppSubscription {
     vim_enabled: bool,
     vim_mode: VimMode,
+    vim_operator: Option<char>,
+    vim_awaits_char: bool,
 }
 
 impl Recipe for AppSubscription {
@@ -19,21 +21,25 @@ impl Recipe for AppSubscription {
     fn hash(&self, state: &mut Hasher) {
         self.vim_enabled.hash(state);
         self.vim_mode.hash(state);
+        self.vim_operator.hash(state);
+        self.vim_awaits_char.hash(state);
     }
 
     fn stream(self: Box<Self>, input: EventStream) -> iced::futures::stream::BoxStream<'static, Message> {
         let vim_enabled = self.vim_enabled;
         let vim_mode = self.vim_mode;
+        let vim_operator = self.vim_operator;
+        let vim_awaits_char = self.vim_awaits_char;
         input
             .filter_map(move |raw_event| {
-                let msg = handle_event(raw_event, vim_enabled, vim_mode.clone());
+                let msg = handle_event(raw_event, vim_enabled, vim_mode.clone(), vim_operator, vim_awaits_char);
                 std::future::ready(msg)
             })
             .boxed()
     }
 }
 
-fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: VimMode) -> Option<Message> {
+fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: VimMode, vim_operator: Option<char>, vim_awaits_char: bool) -> Option<Message> {
     let subscription::Event::Interaction { event, status, .. } = raw_event else {
         return None;
     };
@@ -89,6 +95,15 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
         }
 
         if vim_enabled && vim_mode == VimMode::Normal {
+            if modifiers.control() {
+                match key.as_ref() {
+                    keyboard::Key::Character("d") => return Some(Message::VimKey('\x04')),
+                    keyboard::Key::Character("u") => return Some(Message::VimKey('\x15')),
+                    keyboard::Key::Character("r") => return Some(Message::VimKey('\x12')),
+                    _ => {}
+                }
+                return None;
+            }
             if modifiers.is_empty() {
                 match key.as_ref() {
                     keyboard::Key::Named(keyboard::key::Named::Escape) => {
@@ -96,6 +111,9 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                     }
                     keyboard::Key::Character(ch) => {
                         if let Some(c) = ch.chars().next() {
+                            if vim_awaits_char || vim_operator.is_some() {
+                                return Some(Message::VimKey(c));
+                            }
                             return match c {
                                 'i' => Some(Message::VimEnterInsert),
                                 'a' => Some(Message::VimEnterInsertAppend),
@@ -117,6 +135,10 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                                 'A' => Some(Message::VimEnterInsertLineEnd),
                                 'O' => Some(Message::VimEnterInsertNewlineAbove),
                                 'G' => Some(Message::VimKey('G')),
+                                'P' => Some(Message::VimKey('P')),
+                                'J' => Some(Message::VimKey('J')),
+                                'D' => Some(Message::VimKey('D')),
+                                'C' => Some(Message::VimKey('C')),
                                 _ => None,
                             };
                         }
@@ -181,9 +203,15 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
 
 impl App {
     pub fn subscription(&self) -> Subscription<Message> {
+        let vim_awaits_char = matches!(
+            self.vim_pending,
+            Some(VimPending::ReplaceChar) | Some(VimPending::FindChar)
+        );
         subscription::from_recipe(AppSubscription {
             vim_enabled: self.vim_enabled,
             vim_mode: self.vim_mode.clone(),
+            vim_operator: self.vim_operator,
+            vim_awaits_char,
         })
     }
 }

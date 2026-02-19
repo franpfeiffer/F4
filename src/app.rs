@@ -4,7 +4,7 @@ use iced::{Color, Element, Fill, Point, Rectangle, Renderer, Size, Task, Theme};
 use std::path::PathBuf;
 
 use crate::highlight::{FindHighlightSettings, FindHighlighter, format_highlight};
-use crate::message::{Message, PendingAction, VimMode};
+use crate::message::{Message, PendingAction, VimMode, VimPending};
 
 pub struct App {
     pub content: text_editor::Content,
@@ -24,7 +24,11 @@ pub struct App {
     pub pending_action: Option<PendingAction>,
     pub vim_enabled: bool,
     pub vim_mode: VimMode,
-    pub vim_pending: Option<char>,
+    pub vim_pending: Option<VimPending>,
+    pub vim_count: String,
+    pub vim_operator: Option<char>,
+    pub vim_register: String,
+    pub vim_find_last: Option<(char, bool, bool)>,
 }
 
 impl App {
@@ -48,7 +52,11 @@ impl App {
                 pending_action: None,
                 vim_enabled: false,
                 vim_mode: VimMode::Insert,
-                vim_pending: None,
+                vim_pending: None::<VimPending>,
+                vim_count: String::new(),
+                vim_operator: None,
+                vim_register: String::new(),
+                vim_find_last: None,
             },
             Task::none(),
         )

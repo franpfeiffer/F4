@@ -14,6 +14,15 @@ pub enum VimMode {
     Insert,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum VimPending {
+    G,
+    TextObjectModifier(char),
+    ReplaceChar,
+    FindChar,
+}
+
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Edit(text_editor::Action),
