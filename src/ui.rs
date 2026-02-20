@@ -1,10 +1,41 @@
-use iced::widget::{button, center, column, container, row, text};
+use iced::widget::{button, center, column, container, row, text, text_input};
 use iced::{Element, Length, Theme};
 
 use crate::app::App;
 use crate::message::{Message, VimMode};
+use crate::subscription::COMMAND_INPUT_ID;
 
 impl App {
+    pub fn command_bar(&self) -> Element<'_, Message> {
+        let input = text_input("", &self.vim_command)
+            .id(COMMAND_INPUT_ID.clone())
+            .on_input(Message::VimCommandChanged)
+            .on_submit(Message::VimCommandSubmit)
+            .size(12)
+            .style(|theme: &Theme, _status| text_input::Style {
+                background: theme.extended_palette().background.weak.color.into(),
+                border: iced::Border::default(),
+                icon: theme.extended_palette().background.base.text,
+                placeholder: theme.extended_palette().background.strong.color,
+                value: theme.extended_palette().background.base.text,
+                selection: theme.extended_palette().primary.weak.color,
+            });
+
+        container(
+            row![
+                text(":").size(12),
+                input,
+            ]
+            .align_y(iced::Alignment::Center),
+        )
+        .padding([2, 8])
+        .style(|theme: &Theme| container::Style {
+            background: Some(theme.extended_palette().background.weak.color.into()),
+            ..Default::default()
+        })
+        .into()
+    }
+
     pub fn status_bar(&self) -> Element<'_, Message> {
         let cursor = self.content.cursor();
         let line = cursor.position.line + 1;
@@ -15,6 +46,7 @@ impl App {
             let mode_label = match self.vim_mode {
                 VimMode::Normal => "NORMAL",
                 VimMode::Insert => "INSERT",
+                VimMode::Command => "COMMAND",
             };
             row![
                 text(mode_label).size(12),

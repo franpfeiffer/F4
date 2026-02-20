@@ -1,10 +1,13 @@
 use iced::widget::{canvas, column, stack, text_editor};
 use iced::widget::text::Wrapping;
 use iced::{Color, Element, Fill, Point, Rectangle, Renderer, Size, Task, Theme};
+use iced::widget;
 use std::path::PathBuf;
 
 use crate::highlight::{FindHighlightSettings, FindHighlighter, format_highlight};
 use crate::message::{Message, PendingAction, VimMode, VimPending};
+
+pub const EDITOR_ID: widget::Id = widget::Id::new("editor");
 
 pub struct App {
     pub content: text_editor::Content,
@@ -29,6 +32,7 @@ pub struct App {
     pub vim_operator: Option<char>,
     pub vim_register: String,
     pub vim_find_last: Option<(char, bool, bool)>,
+    pub vim_command: String,
 }
 
 impl App {
@@ -57,6 +61,7 @@ impl App {
                 vim_operator: None,
                 vim_register: String::new(),
                 vim_find_last: None,
+                vim_command: String::new(),
             },
             Task::none(),
         )
@@ -95,6 +100,7 @@ impl App {
         };
 
         let editor = text_editor(&self.content)
+            .id(EDITOR_ID)
             .height(Fill)
             .wrapping(wrapping)
             .on_action(Message::Edit)
@@ -116,22 +122,31 @@ impl App {
             )
             .into();
 
-        col = col.push(editor);
-        col = col.push(self.status_bar());
-
         let show_block_cursor = self.vim_enabled && self.vim_mode == VimMode::Normal;
 
-        let has_overlay = self.show_about || self.pending_action.is_some() || show_block_cursor;
+        let editor_area: Element<'_, Message> = if show_block_cursor {
+            let cursor = self.content.cursor();
+            let line = cursor.position.line as f32;
+            let col_pos = cursor.position.column as f32;
+            stack![
+                editor,
+                canvas(BlockCursor { line, col_pos }).width(Fill).height(Fill)
+            ]
+            .into()
+        } else {
+            editor
+        };
+
+        col = col.push(editor_area);
+        if self.vim_enabled && self.vim_mode == VimMode::Command {
+            col = col.push(self.command_bar());
+        } else {
+            col = col.push(self.status_bar());
+        }
+
+        let has_overlay = self.show_about || self.pending_action.is_some();
         if has_overlay {
             let mut layers = stack![col];
-            if show_block_cursor {
-                let cursor = self.content.cursor();
-                let line = cursor.position.line as f32;
-                let col_pos = cursor.position.column as f32;
-                layers = layers.push(
-                    canvas(BlockCursor { line, col_pos }).width(Fill).height(Fill)
-                );
-            }
             if self.show_about {
                 layers = layers.push(self.about_dialog());
             }
@@ -163,19 +178,18 @@ impl<Message> canvas::Program<Message> for BlockCursor {
     ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
 
-        let line_height = 20.0_f32;
-        let char_width = 8.6_f32;
+        let line_height = 20.8_f32;
+        let char_width = 9.6_f32;
         let editor_padding = 5.0_f32;
-        let menu_bar_height = 29.0_f32;
 
         let x = editor_padding + self.col_pos * char_width;
-        let y = menu_bar_height + editor_padding + self.line * line_height;
+        let y = editor_padding + self.line * line_height;
 
         let block = Rectangle {
             x,
             y,
             width: char_width,
-            height: line_height,
+            height: line_height - 1.0,
         };
 
         frame.fill_rectangle(

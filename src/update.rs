@@ -1,10 +1,12 @@
 use iced::widget::text_editor;
+use iced::widget::operation;
 use iced::Task;
 use std::sync::Arc;
 
-use crate::app::App;
+use crate::app::{App, EDITOR_ID};
 use crate::format::format_document;
 use crate::message::{Message, PendingAction, VimMode, VimPending};
+use crate::subscription::COMMAND_INPUT_ID;
 
 impl App {
     fn vim_do_delete_lines(&mut self, count: usize) {
@@ -625,6 +627,7 @@ impl App {
                 self.vim_pending = None;
                 self.vim_count = String::new();
                 self.vim_operator = None;
+                self.vim_command = String::new();
                 Task::none()
             }
             Message::VimEnterNormal => {
@@ -632,6 +635,7 @@ impl App {
                 self.vim_pending = None;
                 self.vim_count = String::new();
                 self.vim_operator = None;
+                self.vim_command = String::new();
                 if self.show_panel {
                     self.show_panel = false;
                     self.find_matches.clear();
@@ -639,31 +643,58 @@ impl App {
                 }
                 Task::none()
             }
+            Message::VimEnterCommand => {
+                self.vim_mode = VimMode::Command;
+                self.vim_command = String::new();
+                operation::focus(COMMAND_INPUT_ID)
+            }
+            Message::VimCommandChanged(cmd) => {
+                self.vim_command = cmd;
+                Task::none()
+            }
+            Message::VimCommandSubmit => {
+                let cmd = self.vim_command.trim().to_string();
+                self.vim_mode = VimMode::Normal;
+                self.vim_command = String::new();
+                match cmd.as_str() {
+                    "w" => return self.update(Message::Save),
+                    "w!" => return self.update(Message::SaveAs),
+                    "q" => return self.update(Message::Exit),
+                    "q!" => return iced::exit(),
+                    "wq" | "x" => {
+                        let save = self.update(Message::Save);
+                        return save;
+                    }
+                    _ => {}
+                }
+                Task::none()
+            }
             Message::VimEnterInsert => {
                 self.vim_mode = VimMode::Insert;
-                Task::none()
+                eprintln!("VimEnterInsert -> focusing editor");
+                operation::focus_next()
             }
             Message::VimEnterInsertAppend => {
                 self.vim_mode = VimMode::Insert;
                 self.content.perform(text_editor::Action::Move(text_editor::Motion::Right));
-                Task::none()
+                operation::focus(EDITOR_ID)
             }
             Message::VimEnterInsertLineStart => {
                 self.vim_mode = VimMode::Insert;
                 self.content.perform(text_editor::Action::Move(text_editor::Motion::Home));
-                Task::none()
+                operation::focus(EDITOR_ID)
             }
             Message::VimEnterInsertLineEnd => {
                 self.vim_mode = VimMode::Insert;
                 self.content.perform(text_editor::Action::Move(text_editor::Motion::End));
-                Task::none()
+                operation::focus(EDITOR_ID)
             }
             Message::VimEnterInsertNewlineBelow => {
                 self.vim_mode = VimMode::Insert;
                 self.content.perform(text_editor::Action::Move(text_editor::Motion::End));
                 self.content.perform(text_editor::Action::Edit(text_editor::Edit::Enter));
                 self.is_modified = true;
-                Task::none()
+                operation::focus(EDITOR_ID)
             }
             Message::VimEnterInsertNewlineAbove => {
                 self.vim_mode = VimMode::Insert;
@@ -671,7 +702,7 @@ impl App {
                 self.content.perform(text_editor::Action::Edit(text_editor::Edit::Enter));
                 self.content.perform(text_editor::Action::Move(text_editor::Motion::Up));
                 self.is_modified = true;
-                Task::none()
+                operation::focus(EDITOR_ID)
             }
             Message::VimKey(c) => {
                 let count = self.vim_count.parse::<usize>().unwrap_or(1);
@@ -962,7 +993,11 @@ impl App {
                     _ => {}
                 }
                 self.vim_count = String::new();
-                Task::none()
+                if self.vim_mode == VimMode::Insert {
+                    operation::focus(EDITOR_ID)
+                } else {
+                    Task::none()
+                }
             }
         }
     }

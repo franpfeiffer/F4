@@ -8,6 +8,8 @@ use iced::futures::StreamExt;
 use crate::app::App;
 use crate::message::{Message, VimMode, VimPending};
 
+pub const COMMAND_INPUT_ID: iced::widget::Id = iced::widget::Id::new("vim_command_input");
+
 struct AppSubscription {
     vim_enabled: bool,
     vim_mode: VimMode,
@@ -71,6 +73,7 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
 
     if let Event::Keyboard(keyboard::Event::KeyPressed {
         key,
+        modified_key,
         modifiers,
         physical_key,
         ..
@@ -127,7 +130,7 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                 return None;
             }
             if modifiers.shift() && !modifiers.control() {
-                match key.as_ref() {
+                match modified_key.as_ref() {
                     keyboard::Key::Character(ch) => {
                         if let Some(c) = ch.chars().next() {
                             return match c {
@@ -139,6 +142,7 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                                 'J' => Some(Message::VimKey('J')),
                                 'D' => Some(Message::VimKey('D')),
                                 'C' => Some(Message::VimKey('C')),
+                                ':' => Some(Message::VimEnterCommand),
                                 _ => None,
                             };
                         }
@@ -151,6 +155,12 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
         }
 
         if vim_enabled && vim_mode == VimMode::Insert && modifiers.is_empty() {
+            if let keyboard::Key::Named(keyboard::key::Named::Escape) = key.as_ref() {
+                return Some(Message::VimEnterNormal);
+            }
+        }
+
+        if vim_enabled && vim_mode == VimMode::Command && modifiers.is_empty() {
             if let keyboard::Key::Named(keyboard::key::Named::Escape) = key.as_ref() {
                 return Some(Message::VimEnterNormal);
             }

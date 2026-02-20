@@ -12,6 +12,7 @@ pub enum PendingAction {
 pub enum VimMode {
     Normal,
     Insert,
+    Command,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,5 +71,8 @@ pub enum Message {
     VimEnterInsertNewlineBelow,
     VimEnterInsertNewlineAbove,
     VimEnterNormal,
+    VimEnterCommand,
+    VimCommandChanged(String),
+    VimCommandSubmit,
     ToggleVim,
 }
