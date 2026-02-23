@@ -13,6 +13,7 @@ pub enum VimMode {
     Normal,
     Insert,
     Command,
+    Search,
     Visual,
     VisualLine,
 }
@@ -87,4 +88,7 @@ pub enum Message {
     VimCommandSubmit,
     ToggleVim,
     ToggleLineNumbers,
+    VimEnterSearch(bool),
+    VimSearchChanged(String),
+    VimSearchSubmit,
 }

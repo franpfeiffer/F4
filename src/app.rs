@@ -38,6 +38,8 @@ pub struct App {
     pub vim_visual_head: (usize, usize),
     pub vim_col: usize,
     pub line_numbers: LineNumbers,
+    pub vim_search_query: String,
+    pub vim_search_forward: bool,
 }
 
 impl App {
@@ -71,6 +73,8 @@ impl App {
                 vim_visual_head: (0, 0),
                 vim_col: 0,
                 line_numbers: LineNumbers::None,
+                vim_search_query: String::new(),
+                vim_search_forward: true,
             },
             Task::none(),
         )
@@ -211,6 +215,8 @@ impl App {
         col = col.push(editor_area);
         if self.vim_enabled && self.vim_mode == VimMode::Command {
             col = col.push(self.command_bar());
+        } else if self.vim_enabled && self.vim_mode == VimMode::Search {
+            col = col.push(self.search_bar());
         } else {
             col = col.push(self.status_bar());
         }

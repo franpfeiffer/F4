@@ -9,6 +9,7 @@ use crate::app::App;
 use crate::message::{Message, VimMode, VimPending};
 
 pub const COMMAND_INPUT_ID: iced::widget::Id = iced::widget::Id::new("vim_command_input");
+pub const SEARCH_INPUT_ID: iced::widget::Id = iced::widget::Id::new("vim_search_input");
 
 struct AppSubscription {
     vim_enabled: bool,
@@ -122,6 +123,7 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                                 'a' => Some(Message::VimEnterInsertAppend),
                                 'o' => Some(Message::VimEnterInsertNewlineBelow),
                                 'v' => Some(Message::VimEnterVisual),
+                                '/' => Some(Message::VimEnterSearch(true)),
                                 _ => Some(Message::VimKey(c)),
                             };
                         }
@@ -145,6 +147,7 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                                 'C' => Some(Message::VimKey('C')),
                                 'V' => Some(Message::VimEnterVisualLine),
                                 ':' => Some(Message::VimEnterCommand),
+                                '?' => Some(Message::VimEnterSearch(false)),
                                 _ => None,
                             };
                         }
@@ -200,6 +203,12 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
         }
 
         if vim_enabled && vim_mode == VimMode::Command && modifiers.is_empty() {
+            if let keyboard::Key::Named(keyboard::key::Named::Escape) = key.as_ref() {
+                return Some(Message::VimEnterNormal);
+            }
+        }
+
+        if vim_enabled && vim_mode == VimMode::Search && modifiers.is_empty() {
             if let keyboard::Key::Named(keyboard::key::Named::Escape) = key.as_ref() {
                 return Some(Message::VimEnterNormal);
             }

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::app::{App, EDITOR_ID};
 use crate::format::format_document;
 use crate::message::{LineNumbers, Message, PendingAction, VimMode, VimPending};
-use crate::subscription::COMMAND_INPUT_ID;
+use crate::subscription::{COMMAND_INPUT_ID, SEARCH_INPUT_ID};
 
 impl App {
     fn vim_do_delete_lines(&mut self, count: usize) {
@@ -786,6 +786,41 @@ impl App {
             Message::ConfirmCancel => {
                 self.pending_action = None;
                 Task::none()
+            }
+            Message::VimEnterSearch(forward) => {
+                self.vim_mode = VimMode::Search;
+                self.vim_search_forward = forward;
+                self.vim_search_query = String::new();
+                operation::focus(SEARCH_INPUT_ID)
+            }
+            Message::VimSearchChanged(q) => {
+                self.vim_search_query = q;
+                Task::none()
+            }
+            Message::VimSearchSubmit => {
+                let query = self.vim_search_query.clone();
+                self.vim_mode = VimMode::Normal;
+                if !query.is_empty() {
+                    self.find_query = query;
+                    self.case_sensitive = false;
+                    self.find_all_matches();
+                    if !self.find_matches.is_empty() {
+                        let cursor = self.content.cursor();
+                        let cur_line = cursor.position.line;
+                        let cur_col = cursor.position.column;
+                        let next = if self.vim_search_forward {
+                            self.find_matches.iter().position(|&(l, c)| {
+                                (l, c) > (cur_line, cur_col)
+                            }).unwrap_or(0)
+                        } else {
+                            self.find_matches.iter().rposition(|&(l, c)| {
+                                (l, c) < (cur_line, cur_col)
+                            }).unwrap_or(self.find_matches.len().saturating_sub(1))
+                        };
+                        self.navigate_to_match(next);
+                    }
+                }
+                operation::focus(EDITOR_ID)
             }
             Message::ToggleLineNumbers => {
                 self.line_numbers = match self.line_numbers {

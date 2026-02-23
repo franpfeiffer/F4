@@ -3,7 +3,7 @@ use iced::{Element, Length, Theme};
 
 use crate::app::App;
 use crate::message::{Message, VimMode};
-use crate::subscription::COMMAND_INPUT_ID;
+use crate::subscription::{COMMAND_INPUT_ID, SEARCH_INPUT_ID};
 
 impl App {
     pub fn command_bar(&self) -> Element<'_, Message> {
@@ -36,6 +36,33 @@ impl App {
         .into()
     }
 
+    pub fn search_bar(&self) -> Element<'_, Message> {
+        let prefix = if self.vim_search_forward { "/" } else { "?" };
+        let input = text_input("", &self.vim_search_query)
+            .id(SEARCH_INPUT_ID.clone())
+            .on_input(Message::VimSearchChanged)
+            .on_submit(Message::VimSearchSubmit)
+            .size(12)
+            .style(|theme: &Theme, _status| text_input::Style {
+                background: theme.extended_palette().background.weak.color.into(),
+                border: iced::Border::default(),
+                icon: theme.extended_palette().background.base.text,
+                placeholder: theme.extended_palette().background.strong.color,
+                value: theme.extended_palette().background.base.text,
+                selection: theme.extended_palette().primary.weak.color,
+            });
+
+        container(
+            row![text(prefix).size(12), input].align_y(iced::Alignment::Center),
+        )
+        .padding([2, 8])
+        .style(|theme: &Theme| container::Style {
+            background: Some(theme.extended_palette().background.weak.color.into()),
+            ..Default::default()
+        })
+        .into()
+    }
+
     pub fn status_bar(&self) -> Element<'_, Message> {
         let cursor = self.content.cursor();
         let line = cursor.position.line + 1;
@@ -47,6 +74,7 @@ impl App {
                 VimMode::Normal => "NORMAL",
                 VimMode::Insert => "INSERT",
                 VimMode::Command => "COMMAND",
+                VimMode::Search => "SEARCH",
                 VimMode::Visual => "VISUAL",
                 VimMode::VisualLine => "VISUAL LINE",
             };
