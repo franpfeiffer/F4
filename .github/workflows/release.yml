@@ -14,16 +14,12 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            archive: tar.gz
           - target: x86_64-apple-darwin
             os: macos-15
-            archive: tar.gz
           - target: aarch64-apple-darwin
             os: macos-15
-            archive: tar.gz
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            archive: zip
 
     runs-on: ${{ matrix.os }}
 
@@ -43,21 +39,43 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Package (unix)
-        if: matrix.archive == 'tar.gz'
+      - name: Package Linux
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          cd target/${{ matrix.target }}/release
-          tar czf ../../../f4-${{ matrix.target }}.tar.gz f4
-          cd ../../..
+          mkdir -p pkg/usr/bin pkg/usr/share/applications pkg/usr/share/icons/hicolor/256x256/apps
+          cp target/${{ matrix.target }}/release/f4 pkg/usr/bin/f4
+          cp assets/f4.desktop pkg/usr/share/applications/f4.desktop
+          cp assets/icon.png pkg/usr/share/icons/hicolor/256x256/apps/f4.png
+          tar czf f4-${{ matrix.target }}.tar.gz -C pkg .
           shasum -a 256 f4-${{ matrix.target }}.tar.gz > f4-${{ matrix.target }}.tar.gz.sha256
 
-      - name: Package (windows)
-        if: matrix.archive == 'zip'
+      - name: Package macOS
+        if: matrix.os == 'macos-15'
+        run: |
+          APP=F4.app
+          mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
+
+          cp target/${{ matrix.target }}/release/f4 $APP/Contents/MacOS/f4
+          cp assets/Info.plist $APP/Contents/Info.plist
+
+          mkdir -p icon.iconset
+          sips -z 16 16     assets/icon.png --out icon.iconset/icon_16x16.png
+          sips -z 32 32     assets/icon.png --out icon.iconset/icon_16x16@2x.png
+          sips -z 32 32     assets/icon.png --out icon.iconset/icon_32x32.png
+          sips -z 64 64     assets/icon.png --out icon.iconset/icon_32x32@2x.png
+          sips -z 128 128   assets/icon.png --out icon.iconset/icon_128x128.png
+          sips -z 256 256   assets/icon.png --out icon.iconset/icon_128x128@2x.png
+          sips -z 256 256   assets/icon.png --out icon.iconset/icon_256x256.png
+          iconutil -c icns icon.iconset -o $APP/Contents/Resources/icon.icns
+
+          hdiutil create -volname F4 -srcfolder $APP -ov -format UDZO f4-${{ matrix.target }}.dmg
+          shasum -a 256 f4-${{ matrix.target }}.dmg > f4-${{ matrix.target }}.dmg.sha256
+
+      - name: Package Windows
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          Copy-Item target/${{ matrix.target }}/release/f4.exe f4-${{ matrix.target }}.exe
           Compress-Archive -Path target/${{ matrix.target }}/release/f4.exe -DestinationPath f4-${{ matrix.target }}.zip
-          (Get-FileHash f4-${{ matrix.target }}.exe -Algorithm SHA256).Hash.ToLower() + "  f4-${{ matrix.target }}.exe" | Out-File -Encoding ascii f4-${{ matrix.target }}.exe.sha256
           (Get-FileHash f4-${{ matrix.target }}.zip -Algorithm SHA256).Hash.ToLower() + "  f4-${{ matrix.target }}.zip" | Out-File -Encoding ascii f4-${{ matrix.target }}.zip.sha256
 
       - name: Upload artifact
