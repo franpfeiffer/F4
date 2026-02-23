@@ -454,11 +454,23 @@ impl App {
         let snap = self.take_snapshot();
         self.undo_tree.push(snap);
         self.last_snapshot_tick = self.changedtick;
+        if let Some(path) = &self.current_file {
+            crate::persistence::save_undo_tree(path, &self.undo_tree);
+        }
     }
 
     fn apply_snapshot(&mut self, snap: &undo_tree::Snapshot) {
         self.content = text_editor::Content::with_text(&snap.text);
         self.vim_move_to_with_block(snap.cursor_line, snap.cursor_col);
+    }
+
+    fn save_settings(&self) {
+        crate::persistence::save_settings(&crate::persistence::Settings {
+            vim_enabled: self.vim_enabled,
+            line_numbers: self.line_numbers.clone(),
+            word_wrap: self.word_wrap,
+            scale: self.scale,
+        });
     }
 
     fn preview_text(snapshot: &crate::undo_tree::Snapshot, current: &str) -> String {
@@ -538,9 +550,13 @@ impl App {
             }
             Message::FileOpened(Some((path, text))) => {
                 self.content = text_editor::Content::with_text(&text);
-                self.current_file = Some(path);
                 self.is_modified = false;
-                self.undo_tree.reset(undo_tree::Snapshot { text: text.clone(), cursor_line: 0, cursor_col: 0 });
+                if let Some(tree) = crate::persistence::load_undo_tree(&path) {
+                    self.undo_tree = tree;
+                } else {
+                    self.undo_tree.reset(undo_tree::Snapshot { text: text.clone(), cursor_line: 0, cursor_col: 0 });
+                }
+                self.current_file = Some(path);
                 Task::none()
             }
             Message::FileOpened(None) => Task::none(),
@@ -847,14 +863,17 @@ impl App {
             }
             Message::ToggleWordWrap => {
                 self.word_wrap = !self.word_wrap;
+                self.save_settings();
                 Task::none()
             }
             Message::ZoomIn => {
                 self.scale = (self.scale + 0.1).min(3.0);
+                self.save_settings();
                 Task::none()
             }
             Message::ZoomOut => {
                 self.scale = (self.scale - 0.1).max(0.5);
+                self.save_settings();
                 Task::none()
             }
             Message::CtrlPressed => {
@@ -878,6 +897,9 @@ impl App {
                     self.pending_action = Some(PendingAction::Exit);
                     Task::none()
                 } else {
+                    if let Some(path) = &self.current_file {
+                        crate::persistence::save_undo_tree(path, &self.undo_tree);
+                    }
                     iced::exit()
                 }
             }
@@ -944,6 +966,7 @@ impl App {
                     LineNumbers::Absolute => LineNumbers::Relative,
                     LineNumbers::Relative => LineNumbers::None,
                 };
+                self.save_settings();
                 Task::none()
             }
             Message::ToggleVim => {
@@ -955,6 +978,7 @@ impl App {
                 self.vim_command = String::new();
                 self.vim_visual_anchor = None;
                 self.vim_visual_head = (0, 0);
+                self.save_settings();
                 Task::none()
             }
             Message::VimEnterNormal => {

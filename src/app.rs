@@ -51,6 +51,7 @@ pub struct App {
 
 impl App {
     pub fn new() -> (Self, Task<Message>) {
+        let settings = crate::persistence::load_settings();
         (
             Self {
                 content: text_editor::Content::new(),
@@ -63,12 +64,12 @@ impl App {
                 goto_line: String::new(),
                 find_matches: Vec::new(),
                 current_match: None,
-                word_wrap: true,
-                scale: 1.0,
+                word_wrap: settings.word_wrap,
+                scale: settings.scale,
                 ctrl_held: false,
                 show_about: false,
                 pending_action: None,
-                vim_enabled: false,
+                vim_enabled: settings.vim_enabled,
                 vim_mode: VimMode::Insert,
                 vim_pending: None::<VimPending>,
                 vim_count: String::new(),
@@ -79,7 +80,7 @@ impl App {
                 vim_visual_anchor: None,
                 vim_visual_head: (0, 0),
                 vim_col: 0,
-                line_numbers: LineNumbers::None,
+                line_numbers: settings.line_numbers,
                 vim_search_query: String::new(),
                 vim_search_forward: true,
                 undo_tree: crate::undo_tree::UndoTree::new(crate::undo_tree::Snapshot {

@@ -17,8 +17,12 @@ pub const PANEL_WIDTH: f32 = 220.0;
 const START_X: f32 = 24.0;
 pub const START_Y: f32 = 20.0;
 
-pub fn format_elapsed(ts: std::time::SystemTime) -> String {
-    let secs = ts.elapsed().unwrap_or_default().as_secs();
+pub fn format_elapsed(ts: u64) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let secs = now.saturating_sub(ts);
     if secs < 60 {
         format!("{}s ago", secs)
     } else if secs < 3600 {

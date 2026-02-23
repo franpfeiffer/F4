@@ -1,4 +1,5 @@
 use iced::widget::text_editor;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
@@ -18,7 +19,7 @@ pub enum VimMode {
     VisualLine,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LineNumbers {
     None,
     Absolute,

@@ -1,25 +1,34 @@
-use std::time::SystemTime;
+use serde::{Deserialize, Serialize};
 
 pub type NodeId = usize;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Snapshot {
     pub text: String,
     pub cursor_line: usize,
     pub cursor_col: usize,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct UndoNode {
     pub id: NodeId,
     pub snapshot: Snapshot,
     pub parent: Option<NodeId>,
     pub children: Vec<NodeId>,
-    pub timestamp: SystemTime,
+    pub timestamp: u64,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct UndoTree {
     pub nodes: Vec<UndoNode>,
     pub current: NodeId,
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 impl UndoTree {
@@ -29,7 +38,7 @@ impl UndoTree {
             snapshot,
             parent: None,
             children: Vec::new(),
-            timestamp: SystemTime::now(),
+            timestamp: now_secs(),
         };
         Self { nodes: vec![root], current: 0 }
     }
@@ -42,7 +51,7 @@ impl UndoTree {
             snapshot,
             parent: Some(parent),
             children: Vec::new(),
-            timestamp: SystemTime::now(),
+            timestamp: now_secs(),
         });
         self.nodes[parent].children.push(id);
         self.current = id;
@@ -76,7 +85,7 @@ impl UndoTree {
             snapshot,
             parent: None,
             children: Vec::new(),
-            timestamp: SystemTime::now(),
+            timestamp: now_secs(),
         };
         self.nodes.push(root);
         self.current = 0;

@@ -12,6 +12,7 @@ mod ui;
 mod undo_tree;
 mod undo_tree_widget;
 mod update;
+mod persistence;
 
 use iced::{window, Font};
 
