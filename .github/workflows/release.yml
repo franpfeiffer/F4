@@ -71,6 +71,9 @@ jobs:
           hdiutil create -volname F4 -srcfolder $APP -ov -format UDZO f4-${{ matrix.target }}.dmg
           shasum -a 256 f4-${{ matrix.target }}.dmg > f4-${{ matrix.target }}.dmg.sha256
 
+          tar czf f4-${{ matrix.target }}.tar.gz $APP
+          shasum -a 256 f4-${{ matrix.target }}.tar.gz > f4-${{ matrix.target }}.tar.gz.sha256
+
       - name: Package Windows
         if: matrix.os == 'windows-latest'
         shell: pwsh
@@ -97,3 +100,52 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: f4-*.*
+
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew tap
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          LINUX_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-unknown-linux-gnu.tar.gz.sha256 | awk '{print $1}')
+          MACOS_X86_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-apple-darwin.dmg.sha256 | awk '{print $1}')
+          MACOS_ARM_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-aarch64-apple-darwin.dmg.sha256 | awk '{print $1}')
+
+          git clone https://franpfeiffer:${GH_PAT}@github.com/franpfeiffer/homebrew-4f.git
+          cd homebrew-4f
+
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/f4.rb
+          sed -i "s/X86_64_LINUX_SHA256/${LINUX_SHA}/" Formula/f4.rb
+          sed -i "s/X86_64_APPLE_SHA256/${MACOS_X86_SHA}/" Formula/f4.rb
+          sed -i "s/AARCH64_APPLE_SHA256/${MACOS_ARM_SHA}/" Formula/f4.rb
+
+          git config user.email "ci@github.com"
+          git config user.name "CI"
+          git commit -am "f4 v${VERSION}"
+          git push
+
+      - name: Update Scoop bucket
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          VERSION: ${{ steps.version.outputs.tag }}
+        run: |
+          WIN_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-pc-windows-msvc.zip.sha256 | awk '{print $1}')
+
+          git clone https://franpfeiffer:${GH_PAT}@github.com/franpfeiffer/scoop-4f.git
+          cd scoop-4f
+
+          sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" bucket/f4.json
+          sed -i "s|releases/download/v[^/]*/f4-x86_64|releases/download/v${VERSION}/f4-x86_64|g" bucket/f4.json
+          sed -i "s/X86_64_WINDOWS_SHA256/${WIN_SHA}/" bucket/f4.json
+
+          git config user.email "ci@github.com"
+          git config user.name "CI"
+          git commit -am "f4 v${VERSION}"
+          git push
