@@ -1,43 +1,48 @@
 # F4
 
-## Requirements
+A simple text editor with Vim motions.
 
-Rust
+## Install
 
-## Build
+### Linux
 
 ```bash
+brew tap franpfeiffer/f4
+brew install f4
+```
+
+### macOS
+
+```bash
+brew tap franpfeiffer/f4
+brew install --cask f4
+```
+
+### Windows
+
+```powershell
+scoop bucket add f4 https://github.com/franpfeiffer/scoop-f4
+scoop install f4
+```
+
+## Build from source
+
+Prerequisites:
+- rust
+- cargo
+
+```bash
+git clone https://github.com/franpfeiffer/F4.git
+cd F4
 cargo build --release
 ```
 
 The binary will be at `target/release/f4`.
 
-## Run
-
+To install the binary, run:
 ```bash
-cargo run
-```
-
-Or after building:
-
-```bash
-./target/release/f4
-```
-
-## Install
-
-```bash
+git clone https://github.com/franpfeiffer/F4.git
+cd F4
+cargo build --release
 cargo install --path .
-```
-
-### Install on Windows:
-
-Download the executable on the last [release](https://github.com/franpfeiffer/F4/releases).
-
-## IN THE FUTURE
-
-### Install on linux/macOS:
-
-```bash
-brew install f4
 ```

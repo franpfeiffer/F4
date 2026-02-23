@@ -118,17 +118,21 @@ jobs:
           MACOS_X86_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-apple-darwin.dmg.sha256 | awk '{print $1}')
           MACOS_ARM_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-aarch64-apple-darwin.dmg.sha256 | awk '{print $1}')
 
-          git clone https://franpfeiffer:${GH_PAT}@github.com/franpfeiffer/homebrew-4f.git
-          cd homebrew-4f
+          git clone https://franpfeiffer:${GH_PAT}@github.com/franpfeiffer/homebrew-f4.git
+          cd homebrew-f4
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/f4.rb
           sed -i "s/X86_64_LINUX_SHA256/${LINUX_SHA}/" Formula/f4.rb
           sed -i "s/X86_64_APPLE_SHA256/${MACOS_X86_SHA}/" Formula/f4.rb
           sed -i "s/AARCH64_APPLE_SHA256/${MACOS_ARM_SHA}/" Formula/f4.rb
 
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/f4.rb
+          sed -i "s/X86_64_APPLE_SHA256/${MACOS_X86_SHA}/" Casks/f4.rb
+          sed -i "s/AARCH64_APPLE_SHA256/${MACOS_ARM_SHA}/" Casks/f4.rb
+
           git config user.email "ci@github.com"
           git config user.name "CI"
-          git commit -am "f4 v${VERSION}"
+          git commit -am "F4 v${VERSION}"
           git push
 
       - name: Update Scoop bucket
@@ -138,8 +142,8 @@ jobs:
         run: |
           WIN_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-pc-windows-msvc.zip.sha256 | awk '{print $1}')
 
-          git clone https://franpfeiffer:${GH_PAT}@github.com/franpfeiffer/scoop-4f.git
-          cd scoop-4f
+          git clone https://franpfeiffer:${GH_PAT}@github.com/franpfeiffer/scoop-f4.git
+          cd scoop-f4
 
           sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" bucket/f4.json
           sed -i "s|releases/download/v[^/]*/f4-x86_64|releases/download/v${VERSION}/f4-x86_64|g" bucket/f4.json
