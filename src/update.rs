@@ -7,6 +7,7 @@ use crate::app::{App, EDITOR_ID};
 use crate::format::format_document;
 use crate::message::{LineNumbers, Message, PendingAction, VimMode, VimPending};
 use crate::subscription::{COMMAND_INPUT_ID, SEARCH_INPUT_ID};
+use crate::undo_tree;
 
 impl App {
     fn vim_do_delete_lines(&mut self, count: usize) {
@@ -210,7 +211,6 @@ impl App {
 
         match c {
             'j' | 'k' => {
-                // use sticky col, clamp to new line length
                 let new_line = if c == 'j' {
                     (line + count).min(max_line)
                 } else {
@@ -219,7 +219,6 @@ impl App {
                 let len = char_count(new_line);
                 let col = if len == 0 { 0 } else { self.vim_col.min(len.saturating_sub(1)) };
                 self.vim_move_to_with_block(new_line, col);
-                // don't update vim_col — preserve it
             }
             'h' => {
                 let cur_col = cursor.position.column;
@@ -441,6 +440,38 @@ impl App {
         }
         (line, col)
     }
+
+    fn take_snapshot(&self) -> undo_tree::Snapshot {
+        let cursor = self.content.cursor();
+        undo_tree::Snapshot {
+            text: self.content.text(),
+            cursor_line: cursor.position.line,
+            cursor_col: cursor.position.column,
+        }
+    }
+
+    fn push_snapshot(&mut self) {
+        let snap = self.take_snapshot();
+        self.undo_tree.push(snap);
+        self.last_snapshot_tick = self.changedtick;
+    }
+
+    fn apply_snapshot(&mut self, snap: &undo_tree::Snapshot) {
+        self.content = text_editor::Content::with_text(&snap.text);
+        self.vim_move_to_with_block(snap.cursor_line, snap.cursor_col);
+    }
+
+    fn preview_text(snapshot: &crate::undo_tree::Snapshot, current: &str) -> String {
+        let snap_lines: Vec<&str> = snapshot.text.lines().collect();
+        let cur_lines: Vec<&str> = current.lines().collect();
+        let first_diff = snap_lines.iter().zip(cur_lines.iter())
+            .position(|(a, b)| a != b)
+            .unwrap_or_else(|| snap_lines.len().min(cur_lines.len()));
+        let center = first_diff;
+        let start = center.saturating_sub(3);
+        let end = (center + 17).min(snap_lines.len());
+        snap_lines[start..end].join("\n")
+    }
 }
 
 impl App {
@@ -461,6 +492,7 @@ impl App {
                 self.content.perform(action);
                 if is_edit {
                     self.is_modified = true;
+                    self.changedtick += 1;
                     if self.show_panel {
                         self.find_all_matches();
                     }
@@ -482,6 +514,7 @@ impl App {
                 self.show_panel = false;
                 self.find_matches.clear();
                 self.current_match = None;
+                self.undo_tree.reset(undo_tree::Snapshot { text: String::new(), cursor_line: 0, cursor_col: 0 });
                 Task::none()
             }
             Message::Open => {
@@ -507,10 +540,14 @@ impl App {
                 self.content = text_editor::Content::with_text(&text);
                 self.current_file = Some(path);
                 self.is_modified = false;
+                self.undo_tree.reset(undo_tree::Snapshot { text: text.clone(), cursor_line: 0, cursor_col: 0 });
                 Task::none()
             }
             Message::FileOpened(None) => Task::none(),
             Message::Save => {
+                if self.changedtick != self.last_snapshot_tick {
+                    self.push_snapshot();
+                }
                 if let Some(path) = self.current_file.clone() {
                     let text = self.content.text();
                     Task::perform(
@@ -561,7 +598,82 @@ impl App {
                 }
                 iced::exit()
             }
-            Message::Undo => Task::none(),
+            Message::Undo => {
+                if let Some(snap) = self.undo_tree.undo() {
+                    self.apply_snapshot(&snap);
+                    self.is_modified = true;
+                }
+                Task::none()
+            }
+            Message::Redo => {
+                if let Some(snap) = self.undo_tree.redo() {
+                    self.apply_snapshot(&snap);
+                    self.is_modified = true;
+                }
+                Task::none()
+            }
+            Message::Tick => Task::none(),
+            Message::ToggleUndoPanel => {
+                self.show_undo_panel = !self.show_undo_panel;
+                if !self.show_undo_panel {
+                    self.undo_panel_focused = false;
+                }
+                Task::none()
+            }
+            Message::UndoPanelFocusToggle => {
+                if self.show_undo_panel {
+                    self.undo_panel_focused = !self.undo_panel_focused;
+                    if self.undo_panel_focused && self.selected_undo_node.is_none() {
+                        self.selected_undo_node = Some(self.undo_tree.current);
+                    }
+                }
+                Task::none()
+            }
+            Message::UndoPanelMoveSelection(delta) => {
+                if !self.show_undo_panel || !self.undo_panel_focused {
+                    return Task::none();
+                }
+                let n = self.undo_tree.nodes.len();
+                if n == 0 { return Task::none(); }
+                let current = self.selected_undo_node.unwrap_or(self.undo_tree.current);
+                let new_id = if delta > 0 {
+                    (current + 1).min(n - 1)
+                } else {
+                    current.saturating_sub(1)
+                };
+                self.selected_undo_node = Some(new_id);
+                let current = self.content.text();
+                self.undo_preview_text = self.undo_tree.nodes.get(new_id)
+                    .map(|n| Self::preview_text(&n.snapshot, &current))
+                    .unwrap_or_default();
+                Task::none()
+            }
+            Message::UndoPanelConfirm => {
+                if let Some(id) = self.selected_undo_node {
+                    return self.update(Message::UndoTreeJump(id));
+                }
+                Task::none()
+            }
+            Message::UndoTreeSelect(id) => {
+                if self.selected_undo_node == Some(id) {
+                    return self.update(Message::UndoTreeJump(id));
+                }
+                self.selected_undo_node = Some(id);
+                let current = self.content.text();
+                self.undo_preview_text = self.undo_tree.nodes.get(id)
+                    .map(|n| Self::preview_text(&n.snapshot, &current))
+                    .unwrap_or_default();
+                Task::none()
+            }
+            Message::UndoTreeJump(id) => {
+                if let Some(snap) = self.undo_tree.jump_to(id) {
+                    self.apply_snapshot(&snap);
+                    self.is_modified = true;
+                    self.selected_undo_node = None;
+                    self.undo_panel_focused = false;
+                }
+                operation::focus(EDITOR_ID)
+            }
             Message::Cut => {
                 if let Some(selected) = self.content.selection() {
                     let _ = arboard::Clipboard::new()
@@ -585,6 +697,7 @@ impl App {
                             text_editor::Edit::Paste(Arc::new(content)),
                         ));
                         self.is_modified = true;
+                        self.push_snapshot();
                     }
                 }
                 Task::none()
@@ -604,6 +717,7 @@ impl App {
                 if formatted != original.trim_end_matches('\n') {
                     self.content = text_editor::Content::with_text(&formatted);
                     self.is_modified = true;
+                    self.push_snapshot();
                 }
                 Task::none()
             }
@@ -680,6 +794,7 @@ impl App {
                             text_editor::Edit::Paste(Arc::new(self.replace_text.clone())),
                         ));
                         self.is_modified = true;
+                        self.push_snapshot();
                         self.find_all_matches();
                         if !self.find_matches.is_empty() {
                             let next = idx.min(self.find_matches.len() - 1);
@@ -713,6 +828,7 @@ impl App {
                     self.content = text_editor::Content::with_text(&replaced);
                     self.is_modified = true;
                     self.find_all_matches();
+                    self.push_snapshot();
                 }
                 Task::none()
             }
@@ -842,6 +958,11 @@ impl App {
                 Task::none()
             }
             Message::VimEnterNormal => {
+                if self.vim_mode == VimMode::Insert {
+                    if self.changedtick != self.last_snapshot_tick {
+                        self.push_snapshot();
+                    }
+                }
                 self.vim_mode = VimMode::Normal;
                 self.vim_pending = None;
                 self.vim_count = String::new();
@@ -1041,6 +1162,7 @@ impl App {
                             self.vim_mode = VimMode::Normal;
                             self.vim_visual_anchor = None;
                             self.is_modified = true;
+                            self.push_snapshot();
                         }
                         'c' => {
                             self.vim_register = self.vim_visual_selected_text(hl, hc);
@@ -1116,7 +1238,6 @@ impl App {
                             self.vim_pending = None;
                             self.vim_operator = None;
                             self.vim_normal_move('G', 1);
-                            // gg goes to top not bottom — fix line to 0
                             self.vim_move_to_with_block(0, 0);
                         } else {
                             self.vim_pending = Some(VimPending::G);
@@ -1210,13 +1331,8 @@ impl App {
                             self.is_modified = true;
                         }
                     }
-                    'u' => {
-                        self.content.perform(text_editor::Action::Edit(text_editor::Edit::Backspace));
-                        self.content.perform(text_editor::Action::Edit(text_editor::Edit::Backspace));
-                    }
-                    '\x12' => {
-                        // Ctrl+R redo — not directly available in iced, noop for now
-                    }
+                    'u' => { return self.update(Message::Undo); }
+                    '\x12' => { return self.update(Message::Redo); }
                     '\x04' => {
                         for _ in 0..15 * count {
                             self.content.perform(text_editor::Action::Move(text_editor::Motion::Down));
@@ -1232,6 +1348,7 @@ impl App {
                             self.vim_do_delete_lines(count);
                             self.vim_operator = None;
                             self.is_modified = true;
+                            self.push_snapshot();
                         } else {
                             self.vim_operator = Some('d');
                             self.vim_count = String::new();
@@ -1241,6 +1358,7 @@ impl App {
                     'D' => {
                         self.vim_do_motion_op('d', text_editor::Motion::End, 1);
                         self.is_modified = true;
+                        self.push_snapshot();
                     }
                     'y' => {
                         if self.vim_operator == Some('y') {
@@ -1298,6 +1416,7 @@ impl App {
                                 ));
                             }
                             self.is_modified = true;
+                            self.push_snapshot();
                         }
                     }
                     'P' => {
@@ -1317,6 +1436,7 @@ impl App {
                                 ));
                             }
                             self.is_modified = true;
+                            self.push_snapshot();
                         }
                     }
                     '>' => {

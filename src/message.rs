@@ -91,4 +91,12 @@ pub enum Message {
     VimEnterSearch(bool),
     VimSearchChanged(String),
     VimSearchSubmit,
+    ToggleUndoPanel,
+    UndoTreeSelect(usize),
+    UndoTreeJump(usize),
+    UndoPanelFocusToggle,
+    UndoPanelMoveSelection(i32),
+    UndoPanelConfirm,
+    Redo,
+    Tick,
 }

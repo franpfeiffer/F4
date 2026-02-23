@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use iced::advanced::subscription::{EventStream, Hasher, Recipe};
-use iced::{event, keyboard, window, Event, Subscription};
+use iced::{event, keyboard, time, window, Event, Subscription};
 use iced::advanced::subscription;
 use iced::futures::StreamExt;
 
@@ -16,6 +16,7 @@ struct AppSubscription {
     vim_mode: VimMode,
     vim_operator: Option<char>,
     vim_awaits_char: bool,
+    undo_panel_focused: bool,
 }
 
 impl Recipe for AppSubscription {
@@ -26,6 +27,7 @@ impl Recipe for AppSubscription {
         self.vim_mode.hash(state);
         self.vim_operator.hash(state);
         self.vim_awaits_char.hash(state);
+        self.undo_panel_focused.hash(state);
     }
 
     fn stream(self: Box<Self>, input: EventStream) -> iced::futures::stream::BoxStream<'static, Message> {
@@ -33,16 +35,17 @@ impl Recipe for AppSubscription {
         let vim_mode = self.vim_mode;
         let vim_operator = self.vim_operator;
         let vim_awaits_char = self.vim_awaits_char;
+        let undo_panel_focused = self.undo_panel_focused;
         input
             .filter_map(move |raw_event| {
-                let msg = handle_event(raw_event, vim_enabled, vim_mode.clone(), vim_operator, vim_awaits_char);
+                let msg = handle_event(raw_event, vim_enabled, vim_mode.clone(), vim_operator, vim_awaits_char, undo_panel_focused);
                 std::future::ready(msg)
             })
             .boxed()
     }
 }
 
-fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: VimMode, vim_operator: Option<char>, vim_awaits_char: bool) -> Option<Message> {
+fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: VimMode, vim_operator: Option<char>, vim_awaits_char: bool, undo_panel_focused: bool) -> Option<Message> {
     let subscription::Event::Interaction { event, status, .. } = raw_event else {
         return None;
     };
@@ -104,11 +107,23 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                     keyboard::Key::Character("d") => return Some(Message::VimKey('\x04')),
                     keyboard::Key::Character("u") => return Some(Message::VimKey('\x15')),
                     keyboard::Key::Character("r") => return Some(Message::VimKey('\x12')),
+                    keyboard::Key::Character("t") => return Some(Message::ToggleUndoPanel),
+                    keyboard::Key::Character("w") => return Some(Message::UndoPanelFocusToggle),
                     _ => {}
                 }
                 return None;
             }
             if modifiers.is_empty() {
+                if undo_panel_focused {
+                    match key.as_ref() {
+                        keyboard::Key::Character("j") => return Some(Message::UndoPanelMoveSelection(1)),
+                        keyboard::Key::Character("k") => return Some(Message::UndoPanelMoveSelection(-1)),
+                        keyboard::Key::Named(keyboard::key::Named::Enter) => return Some(Message::UndoPanelConfirm),
+                        keyboard::Key::Named(keyboard::key::Named::Escape) => return Some(Message::UndoPanelFocusToggle),
+                        _ => {}
+                    }
+                    return None;
+                }
                 match key.as_ref() {
                     keyboard::Key::Named(keyboard::key::Named::Escape) => {
                         return Some(Message::VimEnterNormal);
@@ -233,6 +248,7 @@ fn handle_event(raw_event: subscription::Event, vim_enabled: bool, vim_mode: Vim
                 keyboard::Key::Character("f") => return Some(Message::TogglePanel),
                 keyboard::Key::Character("h") => return Some(Message::TogglePanel),
                 keyboard::Key::Character("g") => return Some(Message::TogglePanel),
+                keyboard::Key::Character("u") => return Some(Message::ToggleUndoPanel),
                 _ => {}
             }
         }
@@ -265,11 +281,20 @@ impl App {
             self.vim_pending,
             Some(VimPending::ReplaceChar) | Some(VimPending::FindChar)
         );
-        subscription::from_recipe(AppSubscription {
+        let event_sub = subscription::from_recipe(AppSubscription {
             vim_enabled: self.vim_enabled,
             vim_mode: self.vim_mode.clone(),
             vim_operator: self.vim_operator,
             vim_awaits_char,
-        })
+            undo_panel_focused: self.undo_panel_focused,
+        });
+        if self.show_undo_panel {
+            Subscription::batch([
+                event_sub,
+                time::every(std::time::Duration::from_secs(1)).map(|_| Message::Tick),
+            ])
+        } else {
+            event_sub
+        }
     }
 }

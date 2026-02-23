@@ -40,6 +40,13 @@ pub struct App {
     pub line_numbers: LineNumbers,
     pub vim_search_query: String,
     pub vim_search_forward: bool,
+    pub undo_tree: crate::undo_tree::UndoTree,
+    pub show_undo_panel: bool,
+    pub selected_undo_node: Option<usize>,
+    pub undo_panel_focused: bool,
+    pub undo_preview_text: String,
+    pub changedtick: u64,
+    pub last_snapshot_tick: u64,
 }
 
 impl App {
@@ -75,6 +82,17 @@ impl App {
                 line_numbers: LineNumbers::None,
                 vim_search_query: String::new(),
                 vim_search_forward: true,
+                undo_tree: crate::undo_tree::UndoTree::new(crate::undo_tree::Snapshot {
+                    text: String::new(),
+                    cursor_line: 0,
+                    cursor_col: 0,
+                }),
+                show_undo_panel: false,
+                selected_undo_node: None,
+                undo_panel_focused: false,
+                undo_preview_text: String::new(),
+                changedtick: 0,
+                last_snapshot_tick: 0,
             },
             Task::none(),
         )
@@ -212,7 +230,12 @@ impl App {
             editor_widget
         };
 
-        col = col.push(editor_area);
+        let main_row: Element<'_, Message> = if self.show_undo_panel {
+            row![editor_area, self.undo_tree_panel()].into()
+        } else {
+            editor_area
+        };
+        col = col.push(main_row);
         if self.vim_enabled && self.vim_mode == VimMode::Command {
             col = col.push(self.command_bar());
         } else if self.vim_enabled && self.vim_mode == VimMode::Search {

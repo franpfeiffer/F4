@@ -4,7 +4,7 @@ use std::ops::Range;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FindHighlightSettings {
-    pub matches: Vec<(usize, usize)>, // (line, col)
+    pub matches: Vec<(usize, usize)>,
     pub query_len: usize,
     pub current_match: Option<usize>,
 }
@@ -70,7 +70,6 @@ pub fn format_highlight(
     _theme: &iced::Theme,
 ) -> highlighter::Format<iced::Font> {
     highlighter::Format {
-        // current match: bright orange; other matches: yellow
         color: Some(if highlight.is_current {
             Color::from_rgb(1.0, 0.6, 0.0)
         } else {

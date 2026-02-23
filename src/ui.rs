@@ -1,5 +1,5 @@
 use iced::widget::{button, center, column, container, row, text, text_input};
-use iced::{Element, Length, Theme};
+use iced::{Element, Fill, Length, Theme};
 
 use crate::app::App;
 use crate::message::{Message, VimMode};
@@ -78,10 +78,35 @@ impl App {
                 VimMode::Visual => "VISUAL",
                 VimMode::VisualLine => "VISUAL LINE",
             };
+            let mut keys = String::new();
+            if !self.vim_count.is_empty() {
+                keys.push_str(&self.vim_count);
+            }
+            if let Some(op) = self.vim_operator {
+                keys.push(op);
+            }
+            match &self.vim_pending {
+                Some(crate::message::VimPending::G) => keys.push('g'),
+                Some(crate::message::VimPending::ReplaceChar) => keys.push('r'),
+                Some(crate::message::VimPending::FindChar) => {
+                    if let Some((_, fwd, incl)) = self.vim_find_last {
+                        keys.push(match (fwd, incl) {
+                            (true, true) => 'f',
+                            (true, false) => 't',
+                            (false, true) => 'F',
+                            (false, false) => 'T',
+                        });
+                    }
+                }
+                Some(crate::message::VimPending::TextObjectModifier(m)) => keys.push(*m),
+                None => {}
+            }
             row![
                 text(mode_label).size(12),
                 iced::widget::Space::new().width(20),
                 text(format!("Ln {}, Col {}", line, col)).size(12),
+                iced::widget::Space::new().width(20),
+                text(keys).size(12).font(iced::Font::MONOSPACE),
             ]
             .align_y(iced::Alignment::Center)
             .into()
@@ -178,6 +203,114 @@ impl App {
         });
 
         center(dialog).into()
+    }
+
+    pub fn undo_tree_panel(&self) -> Element<'_, Message> {
+        use crate::undo_tree_widget::{
+            format_elapsed, node_positions, UndoTreeWidget,
+            NODE_R, ROW_HEIGHT, START_Y,
+        };
+        use iced::widget::{scrollable, stack};
+
+        let positions = node_positions(&self.undo_tree.nodes);
+
+        let tree = UndoTreeWidget::new(
+            &self.undo_tree.nodes,
+            self.undo_tree.current,
+            self.selected_undo_node,
+            Message::UndoTreeSelect,
+        );
+
+        let top_offset = START_Y - ROW_HEIGHT / 2.0;
+        let mut labels_col = column![
+            iced::widget::Space::new().height(top_offset.max(0.0))
+        ].spacing(0);
+        for &(id, x, _y) in &positions {
+            let node = &self.undo_tree.nodes[id];
+            let is_current = id == self.undo_tree.current;
+            let is_selected = self.selected_undo_node == Some(id);
+            let elapsed = format_elapsed(node.timestamp);
+            let label = if is_current { format!("● {}", elapsed) } else { elapsed };
+            let label_color = if is_current {
+                iced::Color::from_rgb(1.0, 0.85, 0.3)
+            } else if is_selected {
+                iced::Color::from_rgb(0.6, 0.8, 1.0)
+            } else {
+                iced::Color::from_rgb(0.5, 0.5, 0.5)
+            };
+            let left_pad = x + NODE_R + 6.0;
+            labels_col = labels_col.push(
+                container(
+                    text(label)
+                        .size(10)
+                        .font(iced::Font::MONOSPACE)
+                        .style(move |_: &Theme| text::Style { color: Some(label_color) })
+                )
+                .padding(iced::Padding { top: 0.0, bottom: 0.0, left: left_pad, right: 0.0 })
+                .height(ROW_HEIGHT)
+                .align_y(iced::Alignment::Center)
+            );
+        }
+
+        let tree_with_labels = scrollable(stack![
+            tree,
+            labels_col,
+        ]);
+
+        let preview_label = if self.undo_preview_text.is_empty() {
+            "select a node to preview"
+        } else {
+            &self.undo_preview_text
+        };
+
+        let preview = container(
+            scrollable(
+                text(preview_label)
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    })
+            )
+        )
+        .width(Fill)
+        .height(Length::FillPortion(1))
+        .padding([4, 6])
+        .style(|theme: &Theme| container::Style {
+            background: Some(theme.extended_palette().background.base.color.into()),
+            border: iced::Border {
+                width: 1.0,
+                color: theme.extended_palette().background.strong.color,
+                radius: 0.0.into(),
+            },
+            ..Default::default()
+        });
+
+        let focused = self.undo_panel_focused;
+        container(
+            column![
+                container(tree_with_labels)
+                    .width(Fill)
+                    .height(Length::FillPortion(2)),
+                preview,
+            ]
+        )
+        .width(220)
+        .height(Fill)
+        .style(move |theme: &Theme| container::Style {
+            background: Some(theme.extended_palette().background.weak.color.into()),
+            border: iced::Border {
+                width: 1.0,
+                color: if focused {
+                    iced::Color::from_rgb(1.0, 0.75, 0.0)
+                } else {
+                    theme.extended_palette().background.strong.color
+                },
+                radius: 0.0.into(),
+            },
+            ..Default::default()
+        })
+        .into()
     }
 }
 

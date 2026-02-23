@@ -18,7 +18,8 @@ impl App {
         .max_width(220.0);
 
         let edit_menu = Menu::new(vec![
-            Item::new(menu_item_disabled("Undo")),
+            Item::new(menu_item("Undo", "u", Message::Undo)),
+            Item::new(menu_item("Redo", "Ctrl+R", Message::Redo)),
             Item::new(separator()),
             Item::new(menu_item("Cut", "Ctrl+X", Message::Cut)),
             Item::new(menu_item("Copy", "Ctrl+C", Message::Copy)),
@@ -50,12 +51,15 @@ impl App {
             LineNumbers::Absolute => "Line Numbers: Absolute ✓",
             LineNumbers::Relative => "Line Numbers: Relative ✓",
         };
+        let undo_panel_label = if self.show_undo_panel { "Undo Tree ✓" } else { "Undo Tree" };
         let view_menu = Menu::new(vec![
             Item::new(menu_item_disabled("Status Bar")),
             Item::new(separator()),
             Item::new(menu_item(vim_label, "F6", Message::ToggleVim)),
             Item::new(separator()),
             Item::new(menu_item(ln_label, "", Message::ToggleLineNumbers)),
+            Item::new(separator()),
+            Item::new(menu_item(undo_panel_label, "Ctrl+T", Message::ToggleUndoPanel)),
         ])
         .max_width(250.0);
 

@@ -7,6 +7,8 @@ mod message;
 mod search;
 mod subscription;
 mod ui;
+mod undo_tree;
+mod undo_tree_widget;
 mod update;
 
 use iced::{window, Font};
