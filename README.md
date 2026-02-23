@@ -43,6 +43,5 @@ To install the binary, run:
 ```bash
 git clone https://github.com/franpfeiffer/F4.git
 cd F4
-cargo build --release
 cargo install --path .
 ```
