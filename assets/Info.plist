@@ -7,7 +7,7 @@
     <key>CFBundleDisplayName</key>
     <string>F4</string>
     <key>CFBundleIdentifier</key>
-    <string>com.f4editor.f4</string>
+    <string>com.franpfeiffer.F4</string>
     <key>CFBundleVersion</key>
     <string>0.14.0</string>
     <key>CFBundleShortVersionString</key>

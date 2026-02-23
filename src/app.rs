@@ -107,9 +107,9 @@ impl App {
             None => String::from("Untitled"),
         };
         if self.is_modified {
-            format!("*{} - f4", name)
+            format!("*{} - F4", name)
         } else {
-            format!("{} - f4", name)
+            format!("{} - F4", name)
         }
     }
 
