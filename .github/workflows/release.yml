@@ -115,8 +115,6 @@ jobs:
           VERSION: ${{ steps.version.outputs.tag }}
         run: |
           LINUX_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-unknown-linux-gnu.tar.gz.sha256 | awk '{print $1}')
-          MACOS_X86_TAR_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-apple-darwin.tar.gz.sha256 | awk '{print $1}')
-          MACOS_ARM_TAR_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-aarch64-apple-darwin.tar.gz.sha256 | awk '{print $1}')
           MACOS_X86_DMG_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-x86_64-apple-darwin.dmg.sha256 | awk '{print $1}')
           MACOS_ARM_DMG_SHA=$(curl -sL https://github.com/franpfeiffer/F4/releases/download/v${VERSION}/f4-aarch64-apple-darwin.dmg.sha256 | awk '{print $1}')
 
@@ -125,8 +123,6 @@ jobs:
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/f4.rb
           sed -i "s/X86_64_LINUX_SHA256/${LINUX_SHA}/" Formula/f4.rb
-          sed -i "s/X86_64_APPLE_SHA256/${MACOS_X86_TAR_SHA}/" Formula/f4.rb
-          sed -i "s/AARCH64_APPLE_SHA256/${MACOS_ARM_TAR_SHA}/" Formula/f4.rb
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/f4.rb
           sed -i "s/X86_64_APPLE_SHA256/${MACOS_X86_DMG_SHA}/" Casks/f4.rb
