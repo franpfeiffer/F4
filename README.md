@@ -14,6 +14,24 @@ brew tap franpfeiffer/f4
 brew install f4
 ```
 
+To update:
+
+```bash
+brew update && brew upgrade f4
+```
+
+If F4 doesn't appear in your app launcher (Walker, Rofi, etc.), add Homebrew's share directory to `XDG_DATA_DIRS`. For Hyprland, add this to your `envs.conf`:
+
+```
+env = XDG_DATA_DIRS,/home/linuxbrew/.linuxbrew/share:/usr/local/share:/usr/share
+```
+
+Or add it to your shell config:
+
+```bash
+export XDG_DATA_DIRS="/home/linuxbrew/.linuxbrew/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+```
+
 ### macOS
 
 ```bash
@@ -27,6 +45,12 @@ install [scoop](https://scoop.sh/)
 ```powershell
 scoop bucket add f4 https://github.com/franpfeiffer/scoop-f4
 scoop install f4
+```
+
+To update:
+
+```powershell
+scoop update f4
 ```
 
 ## Build from source
