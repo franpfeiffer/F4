@@ -42,11 +42,11 @@ jobs:
       - name: Package Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          mkdir -p pkg/usr/bin pkg/usr/share/applications pkg/usr/share/icons/hicolor/256x256/apps
-          cp target/${{ matrix.target }}/release/f4 pkg/usr/bin/f4
-          cp assets/f4.desktop pkg/usr/share/applications/f4.desktop
-          cp assets/icon.png pkg/usr/share/icons/hicolor/256x256/apps/f4.png
-          tar czf f4-${{ matrix.target }}.tar.gz -C pkg .
+          mkdir -p pkg/f4/usr/bin pkg/f4/usr/share/applications pkg/f4/usr/share/icons/hicolor/256x256/apps
+          cp target/${{ matrix.target }}/release/f4 pkg/f4/usr/bin/f4
+          cp assets/f4.desktop pkg/f4/usr/share/applications/f4.desktop
+          cp assets/icon.png pkg/f4/usr/share/icons/hicolor/256x256/apps/f4.png
+          tar czf f4-${{ matrix.target }}.tar.gz -C pkg f4
           shasum -a 256 f4-${{ matrix.target }}.tar.gz > f4-${{ matrix.target }}.tar.gz.sha256
 
       - name: Package macOS
