@@ -4,6 +4,9 @@ A simple text editor with Vim motions.
 
 ## Install
 
+### For actual OSes
+install [homebrew](https://brew.sh/)
+
 ### Linux
 
 ```bash
@@ -18,7 +21,8 @@ brew tap franpfeiffer/f4
 brew install --cask f4
 ```
 
-### Windows
+### For Windows
+install [scoop](https://scoop.sh/)
 
 ```powershell
 scoop bucket add f4 https://github.com/franpfeiffer/scoop-f4
