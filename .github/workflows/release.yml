@@ -122,11 +122,11 @@ jobs:
           cd homebrew-f4
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/f4.rb
-          sed -i "s/X86_64_LINUX_SHA256/${LINUX_SHA}/" Formula/f4.rb
+          sed -i "s/sha256 \"[a-f0-9]\{64\}\"/sha256 \"${LINUX_SHA}\"/" Formula/f4.rb
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" Casks/f4.rb
-          sed -i "s/X86_64_APPLE_SHA256/${MACOS_X86_DMG_SHA}/" Casks/f4.rb
-          sed -i "s/AARCH64_APPLE_SHA256/${MACOS_ARM_DMG_SHA}/" Casks/f4.rb
+          sed -i "s/arm:   \"[a-f0-9]\{64\}\"/arm:   \"${MACOS_ARM_DMG_SHA}\"/" Casks/f4.rb
+          sed -i "s/intel: \"[a-f0-9]\{64\}\"/intel: \"${MACOS_X86_DMG_SHA}\"/" Casks/f4.rb
 
           git config user.email "ci@github.com"
           git config user.name "CI"
@@ -145,7 +145,7 @@ jobs:
 
           sed -i "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" bucket/f4.json
           sed -i "s|releases/download/v[^/]*/f4-x86_64|releases/download/v${VERSION}/f4-x86_64|g" bucket/f4.json
-          sed -i "s/X86_64_WINDOWS_SHA256/${WIN_SHA}/" bucket/f4.json
+          sed -i "s/\"hash\": \"[a-f0-9]\{64\}\"/\"hash\": \"${WIN_SHA}\"/" bucket/f4.json
 
           git config user.email "ci@github.com"
           git config user.name "CI"
